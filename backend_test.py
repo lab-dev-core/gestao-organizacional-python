@@ -321,7 +321,7 @@ def main():
 
         # Test user registration and authentication
         if not tester.test_register_admin():
-            print("❌ Admin registration failed, stopping tests")
+            print("❌ Admin login failed, stopping tests")
             return 1
 
         # Test authentication endpoints

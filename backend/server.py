@@ -411,9 +411,11 @@ async def register(user_data: UserCreate):
     if user_dict.get("address"):
         user_dict["address"] = user_dict["address"] if isinstance(user_dict["address"], dict) else user_dict["address"].model_dump() if hasattr(user_dict["address"], 'model_dump') else dict(user_dict["address"])
     
-    await db.users.insert_one(user_dict)
+    # Create a copy for MongoDB insertion (will add _id)
+    mongo_doc = dict(user_dict)
+    await db.users.insert_one(mongo_doc)
     
-    # Remove password from response
+    # Remove password from response (user_dict doesn't have _id)
     del user_dict["password"]
     
     access_token = create_access_token(user_dict["id"], user_dict["role"])
@@ -548,7 +550,9 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(requir
     if user_dict.get("address"):
         user_dict["address"] = user_dict["address"] if isinstance(user_dict["address"], dict) else user_dict["address"].model_dump() if hasattr(user_dict["address"], 'model_dump') else dict(user_dict["address"])
     
-    await db.users.insert_one(user_dict)
+    # Create a copy for MongoDB insertion (will add _id)
+    mongo_doc = dict(user_dict)
+    await db.users.insert_one(mongo_doc)
     
     await log_action(current_user["id"], current_user["full_name"], "create", "user", user_dict["id"], {"created_user": user_dict["full_name"]})
     

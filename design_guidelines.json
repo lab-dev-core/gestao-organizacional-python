@@ -1,0 +1,141 @@
+{
+  "identity": "E1 - The Anti-AI Designer",
+  "project_name": "Organizational Management System",
+  "design_philosophy": {
+    "core_principles": [
+      "Fusion over Imitation: Mix Swiss precision with Soft Utility.",
+      "Emotion First: Structure = Trust. Clarity = Calm.",
+      "Content is King: Data density without clutter.",
+      "Negative Space: Use 2x standard padding.",
+      "Contrast: High contrast for readability, subtle borders for structure."
+    ],
+    "anti_patterns": [
+      "No 'Inter' for headings.",
+      "No generic full-screen gradients.",
+      "No center-aligned dashboards.",
+      "No 'teal' (#1B93A4) for primary actions."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Manrope, sans-serif",
+      "body": "IBM Plex Sans, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "weights": {
+      "headings": "600 (SemiBold) or 800 (ExtraBold)",
+      "body": "400 (Regular) or 500 (Medium)"
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl tracking-tight font-extrabold",
+      "h2": "text-3xl tracking-tight font-bold",
+      "h3": "text-2xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm font-medium tracking-wide uppercase text-muted-foreground"
+    },
+    "import_url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;600;800&display=swap"
+  },
+  "colors": {
+    "theme": "system",
+    "palette": {
+      "primary": {
+        "name": "Indigo Structure",
+        "hex": "#4F46E5",
+        "tailwind": "bg-indigo-600 hover:bg-indigo-700 text-white"
+      },
+      "secondary": {
+        "name": "Slate Neutral",
+        "hex": "#64748B",
+        "tailwind": "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50"
+      },
+      "accent": {
+        "name": "Amber Warning",
+        "hex": "#F59E0B",
+        "tailwind": "text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400"
+      },
+      "background": {
+        "light": "#F8FAFC",
+        "dark": "#0F172A"
+      },
+      "surface": {
+        "light": "#FFFFFF",
+        "dark": "#1E293B"
+      }
+    },
+    "gradients": {
+      "subtle_glow": "bg-gradient-to-tr from-indigo-500/10 via-transparent to-transparent"
+    }
+  },
+  "layout": {
+    "grid_system": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-12 gap-6 p-6 md:p-8",
+      "card_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+    },
+    "spacing": {
+      "container_padding": "p-6 md:p-10",
+      "section_gap": "gap-8 md:gap-12",
+      "internal_card_padding": "p-6"
+    },
+    "containers": {
+      "main_wrapper": "min-h-screen bg-background font-sans antialiased",
+      "dashboard_shell": "flex h-screen overflow-hidden bg-background"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "rounded-full px-8 py-6 font-semibold shadow-lg shadow-indigo-500/20 transition-transform hover:-translate-y-0.5 active:translate-y-0",
+      "secondary": "rounded-full px-6 py-6 border-2 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
+      "ghost": "rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+    },
+    "cards": {
+      "dashboard_widget": "rounded-xl border border-slate-200 dark:border-slate-800 bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow duration-200",
+      "neumorphic": "rounded-2xl bg-white dark:bg-slate-900 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-slate-100 dark:border-slate-800"
+    },
+    "inputs": {
+      "default": "h-12 rounded-lg border-slate-200 dark:border-slate-700 bg-transparent px-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+    },
+    "navigation": {
+      "sidebar": "w-64 border-r border-slate-200 dark:border-slate-800 bg-card h-full flex flex-col",
+      "header": "h-16 border-b border-slate-200 dark:border-slate-800 bg-background/80 backdrop-blur-xl sticky top-0 z-50"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_background": "https://images.pexels.com/photos/5712501/pexels-photo-5712501.jpeg",
+      "user_avatar_male": "https://images.unsplash.com/photo-1576558656222-ba66febe3dec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NzA0NzI3N3ww&ixlib=rb-4.1.0&q=85",
+      "user_avatar_female": "https://images.unsplash.com/photo-1655249481446-25d575f1c054?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NzA0NzI3N3ww&ixlib=rb-4.1.0&q=85",
+      "meeting_thumbnail": "https://images.pexels.com/photos/5716042/pexels-photo-5716042.jpeg"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width={1.5} className='w-5 h-5'"
+    }
+  },
+  "motion": {
+    "page_transition": {
+      "initial": { "opacity": 0, "y": 20 },
+      "animate": { "opacity": 1, "y": 0 },
+      "exit": { "opacity": 0, "y": -20 },
+      "transition": { "duration": 0.3, "ease": "easeOut" }
+    },
+    "hover_lift": "transition-transform duration-200 hover:-translate-y-1"
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALL FONTS: Add the Google Fonts import to index.css immediately.",
+    "2. CONFIGURE TAILWIND: Update tailwind.config.js to use the 'Manrope' and 'IBM Plex Sans' font families.",
+    "3. USE SHADCN: Use the existing components in /components/ui but STYLE them with the classes defined in 'components' section above.",
+    "4. LAYOUT: Use the 'dashboard_shell' structure for all protected routes.",
+    "5. DATA-TESTID: Add data-testid to all buttons, inputs, and links (e.g., data-testid='login-submit').",
+    "6. TOASTS: Use 'sonner' for all notifications.",
+    "7. THEME: Implement the light/dark mode toggle using a ThemeProvider.",
+    "8. PERMISSIONS: Ensure UI elements are conditionally rendered based on user role (Admin/Formador/User)."
+  ],
+  "universal_guidelines": [
+    "Do not use gradients for backgrounds, use solid colors or subtle noise.",
+    "Use 2x more padding than you think is necessary.",
+    "Never center-align dashboard content.",
+    "Use 'Manrope' for all headings (h1-h3).",
+    "Use 'IBM Plex Sans' for all body text.",
+    "Ensure all interactive elements have hover states."
+  ]
+}

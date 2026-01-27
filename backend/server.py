@@ -297,6 +297,40 @@ class AuditLogResponse(BaseModel):
     ip_address: Optional[str] = None
     created_at: str
 
+# Acompanhamento (Follow-up) Models
+class AcompanhamentoFrequency(str, Enum):
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+
+class AcompanhamentoBase(BaseModel):
+    user_id: str  # The user being followed up (formando)
+    formative_stage_id: Optional[str] = None
+    date: str  # Date of the follow-up meeting
+    time: str  # Time of the meeting
+    location: str  # Where the meeting took place
+    content: str  # The actual follow-up report/notes
+    frequency: AcompanhamentoFrequency = AcompanhamentoFrequency.BIWEEKLY
+
+class AcompanhamentoCreate(AcompanhamentoBase):
+    pass
+
+class AcompanhamentoUpdate(BaseModel):
+    date: Optional[str] = None
+    time: Optional[str] = None
+    location: Optional[str] = None
+    content: Optional[str] = None
+    frequency: Optional[AcompanhamentoFrequency] = None
+    formative_stage_id: Optional[str] = None
+
+class AcompanhamentoResponse(AcompanhamentoBase):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    formador_id: str  # The formador who created this follow-up
+    formador_name: str
+    user_name: str
+    created_at: str
+    updated_at: str
+
 # ==================== HELPER FUNCTIONS ====================
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

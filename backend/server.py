@@ -208,6 +208,7 @@ class DocumentBase(BaseModel):
     permissions: Optional[PermissionModel] = None
     version: int = 1
     is_public: bool = False
+    formative_stage_id: Optional[str] = None
 
 class DocumentCreate(DocumentBase):
     pass
@@ -218,6 +219,7 @@ class DocumentUpdate(BaseModel):
     category: Optional[str] = None
     permissions: Optional[PermissionModel] = None
     is_public: Optional[bool] = None
+    formative_stage_id: Optional[str] = None
 
 class DocumentResponse(DocumentBase):
     model_config = ConfigDict(extra="ignore")
@@ -229,6 +231,7 @@ class DocumentResponse(DocumentBase):
     uploaded_by: str
     views: int = 0
     downloads: int = 0
+    formative_stage_id: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -241,6 +244,7 @@ class VideoBase(BaseModel):
     video_type: str = "upload"  # "upload" or "link"
     external_url: Optional[str] = None
     is_public: bool = False
+    formative_stage_id: Optional[str] = None
 
 class VideoCreate(VideoBase):
     pass
@@ -252,6 +256,7 @@ class VideoUpdate(BaseModel):
     permissions: Optional[PermissionModel] = None
     external_url: Optional[str] = None
     is_public: Optional[bool] = None
+    formative_stage_id: Optional[str] = None
 
 class VideoResponse(VideoBase):
     model_config = ConfigDict(extra="ignore")
@@ -263,6 +268,7 @@ class VideoResponse(VideoBase):
     duration: Optional[int] = None
     uploaded_by: str
     views: int = 0
+    formative_stage_id: Optional[str] = None
     created_at: str
     updated_at: str
 

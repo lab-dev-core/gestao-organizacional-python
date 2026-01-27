@@ -505,29 +505,42 @@ const AcompanhamentosPage = () => {
           </div>
         </div>
         
-        {canManage && formandos.length > 0 && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()} data-testid="new-acompanhamento-btn">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Acompanhamento
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingAcomp ? 'Editar Acompanhamento' : 'Novo Acompanhamento'}</DialogTitle>
-              </DialogHeader>
-              <ScrollArea className="max-h-[70vh] pr-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Formando *</Label>
-                    <Select
-                      value={formData.user_id}
-                      onValueChange={(v) => setFormData(prev => ({ ...prev, user_id: v }))}
-                      disabled={!!editingAcomp}
-                    >
-                      <SelectTrigger data-testid="acomp-user-select">
-                        <SelectValue placeholder="Selecione um formando..." />
+        <div className="flex items-center gap-2">
+          {/* Export All PDF Button */}
+          {filteredAcompanhamentos.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleExportAllPdf}
+              data-testid="export-all-pdf-btn"
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              Exportar Todos
+            </Button>
+          )}
+          
+          {canManage && formandos.length > 0 && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => handleOpenDialog()} data-testid="new-acompanhamento-btn">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Acompanhamento
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{editingAcomp ? 'Editar Acompanhamento' : 'Novo Acompanhamento'}</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[70vh] pr-4">
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Formando *</Label>
+                      <Select
+                        value={formData.user_id}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, user_id: v }))}
+                        disabled={!!editingAcomp}
+                      >
+                        <SelectTrigger data-testid="acomp-user-select">
+                          <SelectValue placeholder="Selecione um formando..." />
                       </SelectTrigger>
                       <SelectContent>
                         {formandos.map(formando => (

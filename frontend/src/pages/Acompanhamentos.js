@@ -643,6 +643,7 @@ const AcompanhamentosPage = () => {
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </div>
 
       {/* Search */}

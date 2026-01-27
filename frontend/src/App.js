@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard';
 import UsersPage from './pages/Users';
 import DocumentsPage from './pages/Documents';
 import VideosPage from './pages/Videos';
+import AcompanhamentosPage from './pages/Acompanhamentos';
 import LocationsPage from './pages/Locations';
 import FunctionsPage from './pages/Functions';
 import FormativeStagesPage from './pages/FormativeStages';
@@ -40,6 +41,7 @@ function App() {
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/documents" element={<DocumentsPage />} />
                 <Route path="/videos" element={<VideosPage />} />
+                <Route path="/acompanhamentos" element={<AcompanhamentosPage />} />
                 <Route path="/locations" element={<LocationsPage />} />
                 <Route path="/functions" element={<FunctionsPage />} />
                 <Route path="/formative-stages" element={<FormativeStagesPage />} />

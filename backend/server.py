@@ -1579,62 +1579,6 @@ async def export_acompanhamento_pdf(acomp_id: str, current_user: dict = Depends(
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
-@api_router.get("/acompanhamentos/export/pdf")
-async def export_acompanhamentos_pdf(
-    user_id: Optional[str] = None,
-    formative_stage_id: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
-):
-    """Export multiple acompanhamentos as PDF"""
-    query = {}
-    
-    # Permission-based filtering
-    if current_user.get("role") == UserRole.USER:
-        query["user_id"] = current_user["id"]
-    elif current_user.get("role") == UserRole.FORMADOR:
-        query["formador_id"] = current_user["id"]
-        if user_id:
-            query["user_id"] = user_id
-    else:  # Admin
-        if user_id:
-            query["user_id"] = user_id
-    
-    if formative_stage_id:
-        query["formative_stage_id"] = formative_stage_id
-    
-    # Date filtering
-    if date_from or date_to:
-        date_query = {}
-        if date_from:
-            date_query["$gte"] = date_from
-        if date_to:
-            date_query["$lte"] = date_to
-        if date_query:
-            query["date"] = date_query
-    
-    acompanhamentos = await db.acompanhamentos.find(query, {"_id": 0}).sort("date", -1).to_list(1000)
-    
-    if not acompanhamentos:
-        raise HTTPException(status_code=404, detail="No acompanhamentos found")
-    
-    # Get title based on context
-    title = "Relatório de Acompanhamentos"
-    if user_id and acompanhamentos:
-        title = f"Acompanhamentos - {acompanhamentos[0]['user_name']}"
-    
-    # Generate PDF
-    pdf_buffer = generate_acompanhamento_pdf(acompanhamentos, title)
-    
-    filename = f"acompanhamentos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    
-    return StreamingResponse(
-        pdf_buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
 # ==================== AUDIT LOG ROUTES ====================
 @api_router.get("/audit-logs", response_model=List[AuditLogResponse])
 async def list_audit_logs(

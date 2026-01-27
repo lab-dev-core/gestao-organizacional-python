@@ -891,6 +891,7 @@ async def create_document(
     category: str = Form(None),
     is_public: bool = Form(False),
     permissions: str = Form(None),
+    formative_stage_id: str = Form(None),
     file: UploadFile = File(...),
     current_user: dict = Depends(require_admin_or_formador)
 ):
@@ -928,6 +929,7 @@ async def create_document(
         "is_public": is_public,
         "permissions": perm_dict,
         "version": 1,
+        "formative_stage_id": formative_stage_id if formative_stage_id else None,
         "file_url": f"/api/uploads/documents/{file_id}{ext}",
         "file_name": file.filename,
         "file_size": len(content),
@@ -1056,6 +1058,7 @@ async def create_video(
     video_type: str = Form("upload"),
     external_url: str = Form(None),
     permissions: str = Form(None),
+    formative_stage_id: str = Form(None),
     file: UploadFile = File(None),
     current_user: dict = Depends(require_admin_or_formador)
 ):
@@ -1080,6 +1083,7 @@ async def create_video(
         "permissions": perm_dict,
         "video_type": video_type,
         "external_url": external_url,
+        "formative_stage_id": formative_stage_id if formative_stage_id else None,
         "file_url": None,
         "file_name": None,
         "file_size": None,

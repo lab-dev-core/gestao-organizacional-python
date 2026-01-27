@@ -1396,6 +1396,189 @@ async def delete_acompanhamento(acomp_id: str, current_user: dict = Depends(requ
     
     return {"message": "Acompanhamento deleted successfully"}
 
+# ==================== PDF EXPORT FUNCTIONS ====================
+def generate_acompanhamento_pdf(acompanhamentos: List[dict], title: str = "Relatório de Acompanhamentos") -> io.BytesIO:
+    """Generate PDF report for acompanhamentos"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#4F46E5')
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceBefore=20,
+        spaceAfter=10,
+        textColor=colors.HexColor('#1F2937')
+    )
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=10,
+        spaceAfter=6,
+        alignment=TA_JUSTIFY
+    )
+    label_style = ParagraphStyle(
+        'CustomLabel',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#6B7280')
+    )
+    
+    elements = []
+    
+    # Title
+    elements.append(Paragraph(title, title_style))
+    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}", label_style))
+    elements.append(Spacer(1, 20))
+    
+    for idx, acomp in enumerate(acompanhamentos, 1):
+        # Acompanhamento header
+        elements.append(Paragraph(f"Acompanhamento #{idx}", heading_style))
+        
+        # Info table
+        info_data = [
+            ["Formando:", acomp.get("user_name", "-")],
+            ["Formador:", acomp.get("formador_name", "-")],
+            ["Data:", format_date_br(acomp.get("date", "-"))],
+            ["Horário:", acomp.get("time", "-")],
+            ["Local:", acomp.get("location", "-")],
+            ["Frequência:", "Semanal" if acomp.get("frequency") == "weekly" else "Quinzenal"],
+        ]
+        
+        info_table = Table(info_data, colWidths=[3*cm, 13*cm])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#4B5563')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(info_table)
+        
+        # Content
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("Relatório:", label_style))
+        
+        # Content box
+        content_text = acomp.get("content", "").replace("\n", "<br/>")
+        elements.append(Paragraph(content_text, normal_style))
+        
+        # Separator
+        if idx < len(acompanhamentos):
+            elements.append(Spacer(1, 15))
+            separator_table = Table([[""]], colWidths=[16*cm])
+            separator_table.setStyle(TableStyle([
+                ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#E5E7EB')),
+            ]))
+            elements.append(separator_table)
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+def format_date_br(date_str: str) -> str:
+    """Format date string to Brazilian format"""
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", 
+                  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+        return f"{date_obj.day} de {months[date_obj.month - 1]} de {date_obj.year}"
+    except:
+        return date_str
+
+@api_router.get("/acompanhamentos/{acomp_id}/pdf")
+async def export_acompanhamento_pdf(acomp_id: str, current_user: dict = Depends(get_current_user)):
+    """Export a single acompanhamento as PDF"""
+    acomp = await db.acompanhamentos.find_one({"id": acomp_id}, {"_id": 0})
+    if not acomp:
+        raise HTTPException(status_code=404, detail="Acompanhamento not found")
+    
+    # Check permissions
+    if current_user.get("role") == UserRole.USER:
+        if acomp["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif current_user.get("role") == UserRole.FORMADOR:
+        if acomp["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Generate PDF
+    pdf_buffer = generate_acompanhamento_pdf([acomp], f"Acompanhamento - {acomp['user_name']}")
+    
+    filename = f"acompanhamento_{acomp['user_name'].replace(' ', '_')}_{acomp['date']}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/acompanhamentos/export/pdf")
+async def export_acompanhamentos_pdf(
+    user_id: Optional[str] = None,
+    formative_stage_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export multiple acompanhamentos as PDF"""
+    query = {}
+    
+    # Permission-based filtering
+    if current_user.get("role") == UserRole.USER:
+        query["user_id"] = current_user["id"]
+    elif current_user.get("role") == UserRole.FORMADOR:
+        query["formador_id"] = current_user["id"]
+        if user_id:
+            query["user_id"] = user_id
+    else:  # Admin
+        if user_id:
+            query["user_id"] = user_id
+    
+    if formative_stage_id:
+        query["formative_stage_id"] = formative_stage_id
+    
+    # Date filtering
+    if date_from or date_to:
+        date_query = {}
+        if date_from:
+            date_query["$gte"] = date_from
+        if date_to:
+            date_query["$lte"] = date_to
+        if date_query:
+            query["date"] = date_query
+    
+    acompanhamentos = await db.acompanhamentos.find(query, {"_id": 0}).sort("date", -1).to_list(1000)
+    
+    if not acompanhamentos:
+        raise HTTPException(status_code=404, detail="No acompanhamentos found")
+    
+    # Get title based on context
+    title = "Relatório de Acompanhamentos"
+    if user_id and acompanhamentos:
+        title = f"Acompanhamentos - {acompanhamentos[0]['user_name']}"
+    
+    # Generate PDF
+    pdf_buffer = generate_acompanhamento_pdf(acompanhamentos, title)
+    
+    filename = f"acompanhamentos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # ==================== AUDIT LOG ROUTES ====================
 @api_router.get("/audit-logs", response_model=List[AuditLogResponse])
 async def list_audit_logs(

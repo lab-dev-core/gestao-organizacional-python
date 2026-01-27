@@ -14,27 +14,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Plus, Search, Pencil, Trash2, FileText, Upload, Download, Eye, Loader2, File, FileType } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Upload, Download, Eye, Loader2, FileType, ChevronLeft, FolderOpen, GraduationCap, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 const DocumentsPage = () => {
-  const { getAuthHeaders, isAdmin, isFormador } = useAuth();
+  const { getAuthHeaders, isAdmin, isFormador, user } = useAuth();
   const { t } = useLanguage();
   const fileInputRef = useRef(null);
   
   const [documents, setDocuments] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [locations, setLocations] = useState([]);
-  const [functions, setFunctions] = useState([]);
   const [stages, setStages] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [selectedStage, setSelectedStage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -43,35 +38,28 @@ const DocumentsPage = () => {
     title: '',
     description: '',
     category: '',
-    is_public: false,
-    permissions: {
-      location_ids: [],
-      user_ids: [],
-      function_ids: [],
-      formative_stage_ids: []
-    }
+    formative_stage_id: '',
+    is_public: false
   });
 
   const canManage = isAdmin || isFormador;
 
+  // Check if user has access to a stage
+  const hasAccessToStage = (stageId) => {
+    if (isAdmin || isFormador) return true;
+    return user?.formative_stage_id === stageId;
+  };
+
   const fetchData = useCallback(async () => {
     try {
       const headers = getAuthHeaders();
-      const [docsRes, catsRes, locsRes, funcsRes, stagesRes, usersRes] = await Promise.all([
+      const [docsRes, stagesRes] = await Promise.all([
         axios.get(`${API_URL}/documents`, { headers }),
-        axios.get(`${API_URL}/documents/categories`, { headers }),
-        axios.get(`${API_URL}/locations`, { headers }),
-        axios.get(`${API_URL}/functions`, { headers }),
-        axios.get(`${API_URL}/formative-stages`, { headers }),
-        axios.get(`${API_URL}/users`, { headers, params: { limit: 100 } })
+        axios.get(`${API_URL}/formative-stages`, { headers })
       ]);
       
       setDocuments(docsRes.data);
-      setCategories(catsRes.data);
-      setLocations(locsRes.data);
-      setFunctions(funcsRes.data);
-      setStages(stagesRes.data);
-      setUsers(usersRes.data);
+      setStages(stagesRes.data.sort((a, b) => a.order - b.order));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -88,8 +76,8 @@ const DocumentsPage = () => {
       title: '',
       description: '',
       category: '',
-      is_public: false,
-      permissions: { location_ids: [], user_ids: [], function_ids: [], formative_stage_ids: [] }
+      formative_stage_id: selectedStage?.id || '',
+      is_public: false
     });
     setEditingDoc(null);
     setSelectedFile(null);
@@ -103,8 +91,8 @@ const DocumentsPage = () => {
         title: doc.title,
         description: doc.description || '',
         category: doc.category || '',
-        is_public: doc.is_public || false,
-        permissions: doc.permissions || { location_ids: [], user_ids: [], function_ids: [], formative_stage_ids: [] }
+        formative_stage_id: doc.formative_stage_id || selectedStage?.id || '',
+        is_public: doc.is_public || false
       });
     } else {
       resetForm();
@@ -141,13 +129,22 @@ const DocumentsPage = () => {
     try {
       const headers = getAuthHeaders();
 
+      // Build permissions based on formative stage
+      const permissions = {
+        location_ids: [],
+        user_ids: [],
+        function_ids: [],
+        formative_stage_ids: formData.formative_stage_id ? [formData.formative_stage_id] : []
+      };
+
       if (editingDoc) {
         await axios.put(`${API_URL}/documents/${editingDoc.id}`, {
           title: formData.title,
           description: formData.description,
           category: formData.category,
           is_public: formData.is_public,
-          permissions: formData.permissions
+          permissions: permissions,
+          formative_stage_id: formData.formative_stage_id
         }, { headers });
         toast.success(t('documentUpdated'));
       } else {
@@ -157,7 +154,8 @@ const DocumentsPage = () => {
         fd.append('description', formData.description);
         fd.append('category', formData.category);
         fd.append('is_public', formData.is_public);
-        fd.append('permissions', JSON.stringify(formData.permissions));
+        fd.append('permissions', JSON.stringify(permissions));
+        fd.append('formative_stage_id', formData.formative_stage_id);
 
         await axios.post(`${API_URL}/documents`, fd, {
           headers: { ...headers, 'Content-Type': 'multipart/form-data' }
@@ -227,11 +225,28 @@ const DocumentsPage = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const filteredDocs = documents.filter(doc => {
-    const matchesSearch = doc.title?.toLowerCase().includes(search.toLowerCase()) ||
-                         doc.description?.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || doc.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+  // Get document count for each stage
+  const getStageDocCount = (stageId) => {
+    return documents.filter(doc => doc.formative_stage_id === stageId).length;
+  };
+
+  // Get documents without stage (general/public)
+  const getGeneralDocs = () => {
+    return documents.filter(doc => !doc.formative_stage_id || doc.is_public);
+  };
+
+  // Get documents for selected stage
+  const getStageDocuments = () => {
+    if (!selectedStage) return [];
+    return documents.filter(doc => 
+      doc.formative_stage_id === selectedStage.id || 
+      (doc.is_public && !doc.formative_stage_id)
+    );
+  };
+
+  const filteredDocs = (selectedStage ? getStageDocuments() : getGeneralDocs()).filter(doc => {
+    return doc.title?.toLowerCase().includes(search.toLowerCase()) ||
+           doc.description?.toLowerCase().includes(search.toLowerCase());
   });
 
   if (loading) {
@@ -242,13 +257,179 @@ const DocumentsPage = () => {
     );
   }
 
-  return (
-    <div className="space-y-6" data-testid="documents-page">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  // Stage Selection View
+  if (!selectedStage) {
+    return (
+      <div className="space-y-6" data-testid="documents-page">
+        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('documents')}</h1>
-          <p className="text-muted-foreground mt-1">{documents.length} {t('documents').toLowerCase()}</p>
+          <p className="text-muted-foreground mt-1">
+            Selecione uma etapa formativa para acessar os documentos
+          </p>
+        </div>
+
+        {/* Stages Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {stages.map((stage, index) => {
+            const hasAccess = hasAccessToStage(stage.id);
+            const docCount = getStageDocCount(stage.id);
+            
+            return (
+              <Card 
+                key={stage.id}
+                className={`border-0 shadow-md overflow-hidden transition-all duration-200 ${
+                  hasAccess 
+                    ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1' 
+                    : 'opacity-60 cursor-not-allowed'
+                }`}
+                onClick={() => hasAccess && setSelectedStage(stage)}
+                data-testid={`stage-folder-${stage.id}`}
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className={`p-4 rounded-xl ${
+                      hasAccess ? 'bg-primary/10' : 'bg-muted'
+                    }`}>
+                      {hasAccess ? (
+                        <FolderOpen className={`w-8 h-8 ${hasAccess ? 'text-primary' : 'text-muted-foreground'}`} />
+                      ) : (
+                        <Lock className="w-8 h-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    <Badge variant="secondary" className="text-lg px-3 py-1">
+                      {stage.order}
+                    </Badge>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <h3 className="font-semibold text-lg">{stage.name}</h3>
+                    {stage.description && (
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        {stage.description}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <FileText className="w-4 h-4" />
+                      <span>{docCount} {docCount === 1 ? 'documento' : 'documentos'}</span>
+                    </div>
+                    {stage.estimated_duration && (
+                      <Badge variant="outline" className="text-xs">
+                        {stage.estimated_duration}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {!hasAccess && (
+                    <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      Acesso restrito à sua etapa formativa
+                    </p>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+          
+          {stages.length === 0 && (
+            <Card className="col-span-full border-0 shadow-md">
+              <CardContent className="py-16 text-center text-muted-foreground">
+                <GraduationCap className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">Nenhuma etapa formativa cadastrada</p>
+                <p className="text-sm mt-2">Cadastre etapas formativas para organizar os documentos</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* General Documents Section */}
+        {getGeneralDocs().length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold mb-4">Documentos Gerais</h2>
+            <Card className="border-0 shadow-md">
+              <CardContent className="p-0">
+                <ScrollArea className="w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('title')}</TableHead>
+                        <TableHead>{t('category')}</TableHead>
+                        <TableHead>{t('views')}</TableHead>
+                        <TableHead className="text-right">{t('actions')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getGeneralDocs().slice(0, 5).map(doc => (
+                        <TableRow key={doc.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg bg-muted ${getFileIcon(doc.file_type)}`}>
+                                <FileType className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{doc.title}</p>
+                                <p className="text-xs text-muted-foreground">{formatFileSize(doc.file_size)}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {doc.category && <Badge variant="secondary">{doc.category}</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Eye className="w-4 h-4" />
+                              {doc.views}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDownload(doc)}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Documents List View (inside a stage)
+  return (
+    <div className="space-y-6" data-testid="documents-stage-view">
+      {/* Header with Back Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSelectedStage(null)}
+            data-testid="back-to-stages-btn"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{selectedStage.order}</Badge>
+              <h1 className="text-2xl font-bold tracking-tight">{selectedStage.name}</h1>
+            </div>
+            <p className="text-muted-foreground mt-1">
+              {filteredDocs.length} {t('documents').toLowerCase()}
+              {selectedStage.estimated_duration && ` • ${selectedStage.estimated_duration}`}
+            </p>
+          </div>
         </div>
         
         {canManage && (
@@ -259,7 +440,7 @@ const DocumentsPage = () => {
                 {t('newDocument')}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh]">
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingDoc ? t('editDocument') : t('newDocument')}</DialogTitle>
               </DialogHeader>
@@ -269,15 +450,15 @@ const DocumentsPage = () => {
                     <div className="space-y-2">
                       <Label>{t('selectFile')} *</Label>
                       <div 
-                        className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                        className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        <Upload className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
+                        <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">
                           {selectedFile ? selectedFile.name : t('dragDrop')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {t('allowedFormats')}: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT
+                          PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT
                         </p>
                         <input
                           ref={fileInputRef}
@@ -291,25 +472,24 @@ const DocumentsPage = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>{t('title')} *</Label>
-                      <Input
-                        value={formData.title}
-                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                        required
-                        data-testid="document-title-input"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t('category')}</Label>
-                      <Input
-                        value={formData.category}
-                        onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                        placeholder="Ex: Formação, Manual, Regulamento"
-                        data-testid="document-category-input"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>{t('title')} *</Label>
+                    <Input
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      required
+                      data-testid="document-title-input"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>{t('category')}</Label>
+                    <Input
+                      value={formData.category}
+                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                      placeholder="Ex: Manual, Apostila, Exercício"
+                      data-testid="document-category-input"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -322,117 +502,15 @@ const DocumentsPage = () => {
                     />
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="is_public"
-                      checked={formData.is_public}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_public: checked }))}
-                      data-testid="document-public-switch"
-                    />
-                    <Label htmlFor="is_public">{t('public')}</Label>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4" />
+                      Etapa: {selectedStage.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Este documento será acessível apenas para usuários desta etapa formativa
+                    </p>
                   </div>
-
-                  {!formData.is_public && (
-                    <div className="border-t pt-4">
-                      <h3 className="font-semibold mb-4">{t('permissions')}</h3>
-                      <Tabs defaultValue="locations">
-                        <TabsList className="grid grid-cols-4 w-full">
-                          <TabsTrigger value="locations">{t('locations')}</TabsTrigger>
-                          <TabsTrigger value="functions">{t('functions')}</TabsTrigger>
-                          <TabsTrigger value="stages">{t('formativeStages')}</TabsTrigger>
-                          <TabsTrigger value="users">{t('users')}</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="locations" className="mt-4">
-                          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                            {locations.map(loc => (
-                              <label key={loc.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.permissions.location_ids.includes(loc.id)}
-                                  onChange={(e) => {
-                                    const ids = e.target.checked
-                                      ? [...formData.permissions.location_ids, loc.id]
-                                      : formData.permissions.location_ids.filter(id => id !== loc.id);
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      permissions: { ...prev.permissions, location_ids: ids }
-                                    }));
-                                  }}
-                                />
-                                {loc.name}
-                              </label>
-                            ))}
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="functions" className="mt-4">
-                          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                            {functions.map(func => (
-                              <label key={func.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.permissions.function_ids.includes(func.id)}
-                                  onChange={(e) => {
-                                    const ids = e.target.checked
-                                      ? [...formData.permissions.function_ids, func.id]
-                                      : formData.permissions.function_ids.filter(id => id !== func.id);
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      permissions: { ...prev.permissions, function_ids: ids }
-                                    }));
-                                  }}
-                                />
-                                {func.name}
-                              </label>
-                            ))}
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="stages" className="mt-4">
-                          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                            {stages.map(stage => (
-                              <label key={stage.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.permissions.formative_stage_ids.includes(stage.id)}
-                                  onChange={(e) => {
-                                    const ids = e.target.checked
-                                      ? [...formData.permissions.formative_stage_ids, stage.id]
-                                      : formData.permissions.formative_stage_ids.filter(id => id !== stage.id);
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      permissions: { ...prev.permissions, formative_stage_ids: ids }
-                                    }));
-                                  }}
-                                />
-                                {stage.name}
-                              </label>
-                            ))}
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="users" className="mt-4">
-                          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                            {users.map(user => (
-                              <label key={user.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.permissions.user_ids.includes(user.id)}
-                                  onChange={(e) => {
-                                    const ids = e.target.checked
-                                      ? [...formData.permissions.user_ids, user.id]
-                                      : formData.permissions.user_ids.filter(id => id !== user.id);
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      permissions: { ...prev.permissions, user_ids: ids }
-                                    }));
-                                  }}
-                                />
-                                {user.full_name}
-                              </label>
-                            ))}
-                          </div>
-                        </TabsContent>
-                      </Tabs>
-                    </div>
-                  )}
 
                   <DialogFooter className="pt-4">
                     <DialogClose asChild>
@@ -450,31 +528,18 @@ const DocumentsPage = () => {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Search */}
       <Card className="border-0 shadow-md">
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder={`${t('search')}...`}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-                data-testid="documents-search-input"
-              />
-            </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full sm:w-48" data-testid="documents-category-filter">
-                <SelectValue placeholder={t('category')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('all')}</SelectItem>
-                {categories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder={`${t('search')}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+              data-testid="documents-search-input"
+            />
           </div>
         </CardContent>
       </Card>
@@ -490,16 +555,24 @@ const DocumentsPage = () => {
                   <TableHead>{t('category')}</TableHead>
                   <TableHead>{t('views')}</TableHead>
                   <TableHead>{t('downloads')}</TableHead>
-                  <TableHead>{t('status')}</TableHead>
                   <TableHead className="text-right">{t('actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredDocs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>Nenhum documento encontrado</p>
+                      <p>Nenhum documento nesta etapa</p>
+                      {canManage && (
+                        <Button
+                          variant="link"
+                          onClick={() => handleOpenDialog()}
+                          className="mt-2"
+                        >
+                          Adicionar primeiro documento
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -530,12 +603,6 @@ const DocumentsPage = () => {
                           <Download className="w-4 h-4" />
                           {doc.downloads}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {doc.is_public 
-                          ? <Badge variant="outline" className="border-green-500 text-green-600">{t('public')}</Badge>
-                          : <Badge variant="outline">Restrito</Badge>
-                        }
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">

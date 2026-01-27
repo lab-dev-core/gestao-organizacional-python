@@ -158,6 +158,68 @@ const AcompanhamentosPage = () => {
     }
   };
 
+  // Export single acompanhamento as PDF
+  const handleExportPdf = async (acompId) => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await axios.get(`${API_URL}/acompanhamentos/${acompId}/pdf`, {
+        headers,
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `acompanhamento_${acompId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Erro ao exportar PDF');
+    }
+  };
+
+  // Export all acompanhamentos from current stage as PDF
+  const handleExportAllPdf = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const params = new URLSearchParams();
+      if (selectedStage) {
+        params.append('formative_stage_id', selectedStage.id);
+      }
+      
+      const response = await axios.get(`${API_URL}/acompanhamentos/export/pdf?${params.toString()}`, {
+        headers,
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      const stageName = selectedStage ? selectedStage.name.replace(/\s+/g, '_') : 'todos';
+      link.setAttribute('download', `acompanhamentos_${stageName}_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      if (error.response?.status === 404) {
+        toast.error('Nenhum acompanhamento encontrado para exportar');
+      } else {
+        toast.error('Erro ao exportar PDF');
+      }
+    }
+  };
+
   const getInitials = (name) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);

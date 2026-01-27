@@ -1233,6 +1233,162 @@ async def update_video_progress(
         last_watched=now
     )
 
+# ==================== ACOMPANHAMENTO ROUTES ====================
+async def require_formador(current_user: dict = Depends(get_current_user)) -> dict:
+    """Only formadores can create/manage acompanhamentos"""
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR]:
+        raise HTTPException(status_code=403, detail="Only formadores can manage follow-ups")
+    return current_user
+
+@api_router.get("/acompanhamentos/my-formandos")
+async def get_my_formandos(current_user: dict = Depends(require_formador)):
+    """Get list of users that have this formador as their responsible"""
+    formandos = await db.users.find(
+        {"formador_id": current_user["id"], "status": UserStatus.ACTIVE},
+        {"_id": 0, "password": 0}
+    ).to_list(1000)
+    return formandos
+
+@api_router.get("/acompanhamentos", response_model=List[AcompanhamentoResponse])
+async def list_acompanhamentos(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: Optional[str] = None,
+    formative_stage_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    
+    # Admin sees all, formador sees their own created, user sees only their own
+    if current_user.get("role") == UserRole.ADMIN:
+        pass  # No filter for admin
+    elif current_user.get("role") == UserRole.FORMADOR:
+        query["formador_id"] = current_user["id"]
+    else:
+        # Regular user can only see their own acompanhamentos
+        query["user_id"] = current_user["id"]
+    
+    if user_id and current_user.get("role") in [UserRole.ADMIN, UserRole.FORMADOR]:
+        query["user_id"] = user_id
+    
+    if formative_stage_id:
+        query["formative_stage_id"] = formative_stage_id
+    
+    skip = (page - 1) * limit
+    acompanhamentos = await db.acompanhamentos.find(query, {"_id": 0}).skip(skip).limit(limit).sort("date", -1).to_list(limit)
+    return acompanhamentos
+
+@api_router.get("/acompanhamentos/count-by-stage")
+async def get_acompanhamentos_count_by_stage(current_user: dict = Depends(get_current_user)):
+    """Get count of acompanhamentos per formative stage"""
+    query = {}
+    
+    if current_user.get("role") == UserRole.FORMADOR:
+        query["formador_id"] = current_user["id"]
+    elif current_user.get("role") == UserRole.USER:
+        query["user_id"] = current_user["id"]
+    
+    # Get all acompanhamentos matching query
+    acompanhamentos = await db.acompanhamentos.find(query, {"formative_stage_id": 1}).to_list(10000)
+    
+    # Count by stage
+    counts = {}
+    for acomp in acompanhamentos:
+        stage_id = acomp.get("formative_stage_id")
+        if stage_id:
+            counts[stage_id] = counts.get(stage_id, 0) + 1
+    
+    return counts
+
+@api_router.get("/acompanhamentos/{acomp_id}", response_model=AcompanhamentoResponse)
+async def get_acompanhamento(acomp_id: str, current_user: dict = Depends(get_current_user)):
+    acomp = await db.acompanhamentos.find_one({"id": acomp_id}, {"_id": 0})
+    if not acomp:
+        raise HTTPException(status_code=404, detail="Acompanhamento not found")
+    
+    # Check permissions
+    if current_user.get("role") == UserRole.USER:
+        if acomp["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif current_user.get("role") == UserRole.FORMADOR:
+        if acomp["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    return acomp
+
+@api_router.post("/acompanhamentos", response_model=AcompanhamentoResponse)
+async def create_acompanhamento(
+    acomp_data: AcompanhamentoCreate,
+    current_user: dict = Depends(require_formador)
+):
+    # Verify that the user being followed up has this formador as responsible
+    target_user = await db.users.find_one({"id": acomp_data.user_id}, {"_id": 0, "password": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Only allow if formador is the responsible or if admin
+    if current_user.get("role") != UserRole.ADMIN:
+        if target_user.get("formador_id") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="You can only create follow-ups for your assigned users")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    acomp_dict = acomp_data.model_dump()
+    acomp_dict["id"] = str(uuid.uuid4())
+    acomp_dict["formador_id"] = current_user["id"]
+    acomp_dict["formador_name"] = current_user["full_name"]
+    acomp_dict["user_name"] = target_user["full_name"]
+    acomp_dict["created_at"] = now
+    acomp_dict["updated_at"] = now
+    
+    # Use the formando's formative stage if not specified
+    if not acomp_dict.get("formative_stage_id"):
+        acomp_dict["formative_stage_id"] = target_user.get("formative_stage_id")
+    
+    await db.acompanhamentos.insert_one(acomp_dict)
+    await log_action(current_user["id"], current_user["full_name"], "create", "acompanhamento", acomp_dict["id"], {"user": target_user["full_name"]})
+    
+    return acomp_dict
+
+@api_router.put("/acompanhamentos/{acomp_id}", response_model=AcompanhamentoResponse)
+async def update_acompanhamento(
+    acomp_id: str,
+    acomp_data: AcompanhamentoUpdate,
+    current_user: dict = Depends(require_formador)
+):
+    existing = await db.acompanhamentos.find_one({"id": acomp_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Acompanhamento not found")
+    
+    # Only the formador who created it or admin can update
+    if current_user.get("role") != UserRole.ADMIN:
+        if existing["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="You can only edit your own follow-ups")
+    
+    update_dict = {k: v for k, v in acomp_data.model_dump().items() if v is not None}
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.acompanhamentos.update_one({"id": acomp_id}, {"$set": update_dict})
+    await log_action(current_user["id"], current_user["full_name"], "update", "acompanhamento", acomp_id)
+    
+    updated = await db.acompanhamentos.find_one({"id": acomp_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/acompanhamentos/{acomp_id}")
+async def delete_acompanhamento(acomp_id: str, current_user: dict = Depends(require_formador)):
+    existing = await db.acompanhamentos.find_one({"id": acomp_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Acompanhamento not found")
+    
+    # Only the formador who created it or admin can delete
+    if current_user.get("role") != UserRole.ADMIN:
+        if existing["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="You can only delete your own follow-ups")
+    
+    await db.acompanhamentos.delete_one({"id": acomp_id})
+    await log_action(current_user["id"], current_user["full_name"], "delete", "acompanhamento", acomp_id)
+    
+    return {"message": "Acompanhamento deleted successfully"}
+
 # ==================== AUDIT LOG ROUTES ====================
 @api_router.get("/audit-logs", response_model=List[AuditLogResponse])
 async def list_audit_logs(

@@ -464,6 +464,19 @@ const AcompanhamentosPage = () => {
                   {viewingAcomp.content}
                 </div>
               </div>
+              
+              {/* Export PDF Button */}
+              <div className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportPdf(viewingAcomp.id)}
+                  className="w-full"
+                  data-testid="export-single-pdf-btn"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Exportar como PDF
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

@@ -14,7 +14,8 @@ import {
   ClipboardList,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -30,6 +31,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: Users, label: t('users'), href: '/users' },
     { icon: FileText, label: t('documents'), href: '/documents' },
     { icon: Video, label: t('videos'), href: '/videos' },
+    { icon: MessageSquare, label: 'Acompanhamentos', href: '/acompanhamentos' },
   ];
 
   const adminNavItems = [

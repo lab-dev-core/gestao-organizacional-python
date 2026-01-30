@@ -27,6 +27,7 @@ class UserBase(BaseModel):
     role: UserRole = UserRole.USER
     status: UserStatus = UserStatus.ACTIVE
     photo_url: Optional[str] = None
+    is_tenant_owner: bool = False  # Owner of the tenant/organization
 
 
 class UserCreate(UserBase):
@@ -53,6 +54,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     model_config = ConfigDict(extra="ignore")
     id: str
+    tenant_id: Optional[str] = None  # None for superadmins
     created_at: str
     updated_at: str
 
@@ -60,6 +62,7 @@ class UserResponse(UserBase):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    tenant_slug: Optional[str] = None  # Optional: login to specific tenant
 
 
 class TokenResponse(BaseModel):

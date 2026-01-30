@@ -5,7 +5,7 @@ import uuid
 
 from app.database import db
 from app.models import FunctionCreate, FunctionUpdate, FunctionResponse
-from app.utils.security import get_current_user, require_admin
+from app.utils.security import get_current_user, require_admin, get_tenant_filter
 from app.utils.audit import log_action
 
 router = APIRouter()
@@ -18,7 +18,7 @@ async def list_functions(
     search: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    query = get_tenant_filter(current_user)
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
 
@@ -29,7 +29,10 @@ async def list_functions(
 
 @router.get("/{function_id}", response_model=FunctionResponse)
 async def get_function(function_id: str, current_user: dict = Depends(get_current_user)):
-    function = await db.functions.find_one({"id": function_id}, {"_id": 0})
+    query = get_tenant_filter(current_user)
+    query["id"] = function_id
+
+    function = await db.functions.find_one(query, {"_id": 0})
     if not function:
         raise HTTPException(status_code=404, detail="Function not found")
     return function
@@ -40,6 +43,7 @@ async def create_function(function_data: FunctionCreate, current_user: dict = De
     now = datetime.now(timezone.utc).isoformat()
     function_dict = function_data.model_dump()
     function_dict["id"] = str(uuid.uuid4())
+    function_dict["tenant_id"] = current_user.get("tenant_id")
     function_dict["created_at"] = now
     function_dict["updated_at"] = now
 
@@ -51,7 +55,10 @@ async def create_function(function_data: FunctionCreate, current_user: dict = De
 
 @router.put("/{function_id}", response_model=FunctionResponse)
 async def update_function(function_id: str, function_data: FunctionUpdate, current_user: dict = Depends(require_admin)):
-    existing = await db.functions.find_one({"id": function_id})
+    query = get_tenant_filter(current_user)
+    query["id"] = function_id
+
+    existing = await db.functions.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Function not found")
 
@@ -67,7 +74,10 @@ async def update_function(function_id: str, function_data: FunctionUpdate, curre
 
 @router.delete("/{function_id}")
 async def delete_function(function_id: str, current_user: dict = Depends(require_admin)):
-    existing = await db.functions.find_one({"id": function_id})
+    query = get_tenant_filter(current_user)
+    query["id"] = function_id
+
+    existing = await db.functions.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Function not found")
 

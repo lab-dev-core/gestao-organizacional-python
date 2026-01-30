@@ -18,9 +18,15 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_access_token(user_id: str, role: str) -> str:
+def create_access_token(user_id: str, role: str, tenant_id: str = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    payload = {"user_id": user_id, "role": role, "exp": expire, "type": "access"}
+    payload = {
+        "user_id": user_id,
+        "role": role,
+        "tenant_id": tenant_id,
+        "exp": expire,
+        "type": "access"
+    }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -57,19 +63,70 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return user
 
 
+async def require_superadmin(current_user: dict = Depends(get_current_user)) -> dict:
+    """Require superadmin role - can manage all tenants"""
+    if current_user.get("role") != UserRole.SUPERADMIN:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    return current_user
+
+
 async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user.get("role") != UserRole.ADMIN:
+    """Require admin role within the tenant (or superadmin)"""
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
 
 async def require_admin_or_formador(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR]:
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]:
         raise HTTPException(status_code=403, detail="Admin or Formador access required")
     return current_user
 
 
 async def require_formador(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR]:
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]:
         raise HTTPException(status_code=403, detail="Only formadores can manage follow-ups")
     return current_user
+
+
+def get_tenant_filter(current_user: dict) -> dict:
+    """Get tenant filter for queries - superadmin sees all, others see only their tenant"""
+    if current_user.get("role") == UserRole.SUPERADMIN:
+        return {}  # No filter for superadmin
+
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="User not associated with any tenant")
+
+    return {"tenant_id": tenant_id}
+
+
+async def check_tenant_limits(tenant_id: str, resource_type: str) -> None:
+    """Check if tenant has reached their plan limits"""
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    if resource_type == "users":
+        current_count = await db.users.count_documents({"tenant_id": tenant_id})
+        if current_count >= tenant.get("max_users", 10):
+            raise HTTPException(
+                status_code=403,
+                detail=f"User limit reached ({tenant.get('max_users', 10)} users). Please upgrade your plan."
+            )
+
+    elif resource_type == "storage":
+        # Check storage limit
+        docs = await db.documents.find({"tenant_id": tenant_id}, {"file_size": 1}).to_list(10000)
+        videos = await db.videos.find({"tenant_id": tenant_id}, {"file_size": 1}).to_list(10000)
+
+        storage_bytes = sum(d.get("file_size", 0) or 0 for d in docs)
+        storage_bytes += sum(v.get("file_size", 0) or 0 for v in videos)
+        storage_gb = storage_bytes / (1024 ** 3)
+
+        max_storage = tenant.get("max_storage_gb", 5)
+        if storage_gb >= max_storage:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Storage limit reached ({max_storage} GB). Please upgrade your plan."
+            )

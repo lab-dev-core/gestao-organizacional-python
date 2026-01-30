@@ -39,3 +39,7 @@ SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@example.com')
 
 # Frontend URL (para links de recuperação de senha)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+# Superadmin (criado automaticamente no startup)
+SUPERADMIN_EMAIL = os.environ.get('SUPERADMIN_EMAIL', 'superadmin@sistema.com')
+SUPERADMIN_PASSWORD = os.environ.get('SUPERADMIN_PASSWORD', 'superadmin123')

@@ -5,7 +5,7 @@ import uuid
 
 from app.database import db
 from app.models import FormativeStageCreate, FormativeStageUpdate, FormativeStageResponse
-from app.utils.security import get_current_user, require_admin
+from app.utils.security import get_current_user, require_admin, get_tenant_filter
 from app.utils.audit import log_action
 
 router = APIRouter()
@@ -18,7 +18,7 @@ async def list_formative_stages(
     search: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    query = get_tenant_filter(current_user)
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
 
@@ -29,7 +29,10 @@ async def list_formative_stages(
 
 @router.get("/{stage_id}", response_model=FormativeStageResponse)
 async def get_formative_stage(stage_id: str, current_user: dict = Depends(get_current_user)):
-    stage = await db.formative_stages.find_one({"id": stage_id}, {"_id": 0})
+    query = get_tenant_filter(current_user)
+    query["id"] = stage_id
+
+    stage = await db.formative_stages.find_one(query, {"_id": 0})
     if not stage:
         raise HTTPException(status_code=404, detail="Formative stage not found")
     return stage
@@ -40,6 +43,7 @@ async def create_formative_stage(stage_data: FormativeStageCreate, current_user:
     now = datetime.now(timezone.utc).isoformat()
     stage_dict = stage_data.model_dump()
     stage_dict["id"] = str(uuid.uuid4())
+    stage_dict["tenant_id"] = current_user.get("tenant_id")
     stage_dict["created_at"] = now
     stage_dict["updated_at"] = now
 
@@ -51,7 +55,10 @@ async def create_formative_stage(stage_data: FormativeStageCreate, current_user:
 
 @router.put("/{stage_id}", response_model=FormativeStageResponse)
 async def update_formative_stage(stage_id: str, stage_data: FormativeStageUpdate, current_user: dict = Depends(require_admin)):
-    existing = await db.formative_stages.find_one({"id": stage_id})
+    query = get_tenant_filter(current_user)
+    query["id"] = stage_id
+
+    existing = await db.formative_stages.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Formative stage not found")
 
@@ -67,7 +74,10 @@ async def update_formative_stage(stage_id: str, stage_data: FormativeStageUpdate
 
 @router.delete("/{stage_id}")
 async def delete_formative_stage(stage_id: str, current_user: dict = Depends(require_admin)):
-    existing = await db.formative_stages.find_one({"id": stage_id})
+    query = get_tenant_filter(current_user)
+    query["id"] = stage_id
+
+    existing = await db.formative_stages.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Formative stage not found")
 

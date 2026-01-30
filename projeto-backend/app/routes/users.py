@@ -9,7 +9,10 @@ from app.database import db
 from app.config import UPLOAD_DIR, ALLOWED_IMAGE_EXTENSIONS
 from app.models import UserCreate, UserUpdate, UserResponse
 from app.models.enums import UserRole, UserStatus
-from app.utils.security import get_current_user, require_admin, hash_password
+from app.utils.security import (
+    get_current_user, require_admin, hash_password,
+    get_tenant_filter, check_tenant_limits
+)
 from app.utils.audit import log_action
 
 router = APIRouter()
@@ -27,7 +30,8 @@ async def list_users(
     formative_stage_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    # Apply tenant filter
+    query = get_tenant_filter(current_user)
 
     if search:
         query["$or"] = [
@@ -53,17 +57,21 @@ async def list_users(
 
 @router.get("/formadores", response_model=List[UserResponse])
 async def list_formadores(current_user: dict = Depends(get_current_user)):
-    """List all users with formador role"""
-    formadores = await db.users.find(
-        {"role": UserRole.FORMADOR, "status": UserStatus.ACTIVE},
-        {"_id": 0, "password": 0}
-    ).to_list(1000)
+    """List all users with formador role within the tenant"""
+    query = get_tenant_filter(current_user)
+    query["role"] = UserRole.FORMADOR
+    query["status"] = UserStatus.ACTIVE
+
+    formadores = await db.users.find(query, {"_id": 0, "password": 0}).to_list(1000)
     return formadores
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str, current_user: dict = Depends(get_current_user)):
-    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    query = get_tenant_filter(current_user)
+    query["id"] = user_id
+
+    user = await db.users.find_one(query, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -71,19 +79,35 @@ async def get_user(user_id: str, current_user: dict = Depends(get_current_user))
 
 @router.post("", response_model=UserResponse)
 async def create_user(user_data: UserCreate, current_user: dict = Depends(require_admin)):
-    existing = await db.users.find_one({"email": user_data.email})
+    tenant_id = current_user.get("tenant_id")
+
+    # Check tenant limits
+    if tenant_id:
+        await check_tenant_limits(tenant_id, "users")
+
+    # Check email uniqueness within tenant
+    query = {"email": user_data.email}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    existing = await db.users.find_one(query)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Check CPF uniqueness within tenant
     if user_data.cpf:
-        existing_cpf = await db.users.find_one({"cpf": user_data.cpf})
+        cpf_query = {"cpf": user_data.cpf}
+        if tenant_id:
+            cpf_query["tenant_id"] = tenant_id
+        existing_cpf = await db.users.find_one(cpf_query)
         if existing_cpf:
             raise HTTPException(status_code=400, detail="CPF already registered")
 
     now = datetime.now(timezone.utc).isoformat()
     user_dict = user_data.model_dump()
     user_dict["id"] = str(uuid.uuid4())
+    user_dict["tenant_id"] = tenant_id  # Associate with current user's tenant
     user_dict["password"] = hash_password(user_data.password)
+    user_dict["is_tenant_owner"] = False
     user_dict["created_at"] = now
     user_dict["updated_at"] = now
 
@@ -101,15 +125,27 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(requir
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != UserRole.ADMIN and current_user["id"] != user_id:
+    # Superadmin can update anyone, admin can update users in their tenant, users can update themselves
+    if current_user["role"] not in [UserRole.ADMIN, UserRole.SUPERADMIN] and current_user["id"] != user_id:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    if current_user["role"] != UserRole.ADMIN and user_data.role:
+    # Non-admins cannot change role
+    if current_user["role"] not in [UserRole.ADMIN, UserRole.SUPERADMIN] and user_data.role:
         raise HTTPException(status_code=403, detail="Cannot change role")
 
-    existing = await db.users.find_one({"id": user_id})
+    # Build query with tenant filter
+    query = {"id": user_id}
+    if current_user["role"] != UserRole.SUPERADMIN and current_user.get("tenant_id"):
+        query["tenant_id"] = current_user["tenant_id"]
+
+    existing = await db.users.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent tenant owners from being demoted by non-superadmins
+    if existing.get("is_tenant_owner") and current_user["role"] != UserRole.SUPERADMIN:
+        if user_data.role and user_data.role != UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Cannot change role of tenant owner")
 
     update_dict = {k: v for k, v in user_data.model_dump().items() if v is not None}
 
@@ -117,7 +153,10 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
         update_dict["password"] = hash_password(update_dict["password"])
 
     if "email" in update_dict and update_dict["email"] != existing["email"]:
-        existing_email = await db.users.find_one({"email": update_dict["email"]})
+        email_query = {"email": update_dict["email"]}
+        if existing.get("tenant_id"):
+            email_query["tenant_id"] = existing["tenant_id"]
+        existing_email = await db.users.find_one(email_query)
         if existing_email:
             raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -136,12 +175,21 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(require_admin)):
-    existing = await db.users.find_one({"id": user_id})
+    # Build query with tenant filter
+    query = {"id": user_id}
+    if current_user["role"] != UserRole.SUPERADMIN and current_user.get("tenant_id"):
+        query["tenant_id"] = current_user["tenant_id"]
+
+    existing = await db.users.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="User not found")
 
     if user_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    # Prevent tenant owner deletion by non-superadmins
+    if existing.get("is_tenant_owner") and current_user["role"] != UserRole.SUPERADMIN:
+        raise HTTPException(status_code=403, detail="Cannot delete tenant owner")
 
     await db.users.delete_one({"id": user_id})
     await log_action(current_user["id"], current_user["full_name"], "delete", "user", user_id, {"deleted_user": existing["full_name"]})
@@ -155,8 +203,17 @@ async def upload_user_photo(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    if current_user["role"] != UserRole.ADMIN and current_user["id"] != user_id:
+    if current_user["role"] not in [UserRole.ADMIN, UserRole.SUPERADMIN] and current_user["id"] != user_id:
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Verify user exists and belongs to same tenant
+    query = {"id": user_id}
+    if current_user["role"] != UserRole.SUPERADMIN and current_user.get("tenant_id"):
+        query["tenant_id"] = current_user["tenant_id"]
+
+    user = await db.users.find_one(query)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_IMAGE_EXTENSIONS:

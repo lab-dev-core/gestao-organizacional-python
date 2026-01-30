@@ -1,4 +1,8 @@
 from app.models.enums import UserRole, UserStatus, AcompanhamentoFrequency
+from app.models.tenant import (
+    TenantPlan, TenantStatus, TenantBase, TenantCreate, TenantUpdate,
+    TenantResponse, TenantStatsResponse
+)
 from app.models.user import (
     AddressModel, UserBase, UserCreate, UserUpdate, UserResponse,
     LoginRequest, TokenResponse, RefreshTokenRequest,

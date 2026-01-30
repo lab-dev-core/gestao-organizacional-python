@@ -1669,6 +1669,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def create_default_admin():
+    """Cria um usuário admin padrão se não existir nenhum admin no sistema"""
+    admin_count = await db.users.count_documents({"role": UserRole.ADMIN})
+    if admin_count == 0:
+        default_admin = {
+            "id": str(uuid.uuid4()),
+            "full_name": "Administrador",
+            "email": "admin@admin.com",
+            "password": bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode(),
+            "role": UserRole.ADMIN,
+            "status": UserStatus.ACTIVE,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.users.insert_one(default_admin)
+        logger.info("Admin padrão criado: admin@admin.com / admin123")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()

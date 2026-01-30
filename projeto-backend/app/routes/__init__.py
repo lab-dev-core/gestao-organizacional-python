@@ -1,9 +1,10 @@
 from fastapi import APIRouter
-from app.routes import auth, users, locations, functions, formative_stages, documents, videos, acompanhamentos, audit, stats, files
+from app.routes import auth, users, locations, functions, formative_stages, documents, videos, acompanhamentos, audit, stats, files, tenants
 
 api_router = APIRouter(prefix="/api")
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(locations.router, prefix="/locations", tags=["Locations"])
 api_router.include_router(functions.router, prefix="/functions", tags=["Functions"])

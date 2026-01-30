@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -8,20 +8,42 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { GraduationCap, Sun, Moon, Globe, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { GraduationCap, Sun, Moon, Globe, Eye, EyeOff, Loader2, Building2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Login = () => {
+  const [searchParams] = useSearchParams();
+  const tenantSlugFromUrl = searchParams.get('org');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [tenantSlug, setTenantSlug] = useState(tenantSlugFromUrl || '');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [tenantInfo, setTenantInfo] = useState(null);
+  const [loginType, setLoginType] = useState(tenantSlugFromUrl ? 'organization' : 'organization');
 
-  const { login } = useAuth();
+  const { login, getTenantBySlug } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
+
+  // Fetch tenant info when slug changes
+  useEffect(() => {
+    const fetchTenant = async () => {
+      if (tenantSlug && tenantSlug.length >= 3) {
+        const tenant = await getTenantBySlug(tenantSlug);
+        setTenantInfo(tenant);
+      } else {
+        setTenantInfo(null);
+      }
+    };
+
+    const debounce = setTimeout(fetchTenant, 500);
+    return () => clearTimeout(debounce);
+  }, [tenantSlug, getTenantBySlug]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,7 +51,15 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const slug = loginType === 'organization' ? tenantSlug : null;
+
+      if (loginType === 'organization' && !tenantSlug) {
+        setError('Por favor, informe o identificador da organização');
+        setLoading(false);
+        return;
+      }
+
+      await login(email, password, slug);
       toast.success(t('loginSuccess'));
       navigate('/dashboard');
     } catch (err) {
@@ -40,7 +70,7 @@ const Login = () => {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative"
       style={{
         backgroundImage: `url('https://images.pexels.com/photos/5712501/pexels-photo-5712501.jpeg')`,
@@ -83,16 +113,65 @@ const Login = () => {
           <div>
             <CardTitle className="text-2xl font-bold tracking-tight">FormaPro</CardTitle>
             <CardDescription className="text-muted-foreground mt-1">
-              {t('login')}
+              {tenantInfo ? tenantInfo.name : t('login')}
             </CardDescription>
           </div>
         </CardHeader>
 
         <CardContent className="pt-4">
+          <Tabs value={loginType} onValueChange={setLoginType} className="mb-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="organization" className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Organização
+              </TabsTrigger>
+              <TabsTrigger value="superadmin" className="flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Administrador
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <Alert variant="destructive" className="animate-fade-in">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {loginType === 'organization' && (
+              <div className="space-y-2">
+                <Label htmlFor="tenant" className="text-sm font-medium">
+                  Identificador da Organização
+                </Label>
+                <Input
+                  id="tenant"
+                  type="text"
+                  placeholder="minha-organizacao"
+                  value={tenantSlug}
+                  onChange={(e) => setTenantSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  required={loginType === 'organization'}
+                  className="h-12"
+                  data-testid="login-tenant-input"
+                />
+                {tenantInfo && (
+                  <p className="text-sm text-green-600 flex items-center gap-1">
+                    <Building2 className="w-3 h-3" />
+                    {tenantInfo.name}
+                  </p>
+                )}
+                {tenantSlug && tenantSlug.length >= 3 && !tenantInfo && (
+                  <p className="text-sm text-red-500">Organização não encontrada</p>
+                )}
+              </div>
+            )}
+
+            {loginType === 'superadmin' && (
+              <Alert className="bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200">
+                <Shield className="w-4 h-4" />
+                <AlertDescription>
+                  Acesso restrito para administradores do sistema.
+                </AlertDescription>
               </Alert>
             )}
 
@@ -147,7 +226,7 @@ const Login = () => {
             <Button
               type="submit"
               className="w-full h-12 rounded-full font-semibold shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5 active:translate-y-0"
-              disabled={loading}
+              disabled={loading || (loginType === 'organization' && tenantSlug && !tenantInfo)}
               data-testid="login-submit-btn"
             >
               {loading ? (
@@ -161,18 +240,20 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              {t('noAccount')}{' '}
-              <Link
-                to="/register"
-                className="text-primary hover:underline font-medium"
-                data-testid="register-link"
-              >
-                {t('register')}
-              </Link>
-            </p>
-          </div>
+          {loginType === 'organization' && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                {t('noAccount')}{' '}
+                <Link
+                  to={tenantSlug ? `/register?org=${tenantSlug}` : '/register'}
+                  className="text-primary hover:underline font-medium"
+                  data-testid="register-link"
+                >
+                  {t('register')}
+                </Link>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

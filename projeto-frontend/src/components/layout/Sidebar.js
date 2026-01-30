@@ -12,17 +12,19 @@ import {
   Briefcase,
   GraduationCap,
   ClipboardList,
-  Settings,
   ChevronLeft,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  Building2,
+  Shield
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
+import { Badge } from '../ui/badge';
 
 const Sidebar = ({ collapsed, onToggle }) => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, tenant } = useAuth();
   const { t } = useLanguage();
   const location = useLocation();
 
@@ -41,9 +43,13 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: ClipboardList, label: t('auditLogs'), href: '/audit-logs' },
   ];
 
+  const superAdminNavItems = [
+    { icon: Building2, label: 'Organizações', href: '/tenants' },
+  ];
+
   const NavItem = ({ item }) => {
     const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + '/');
-    
+
     return (
       <NavLink to={item.href}>
         <div
@@ -91,8 +97,52 @@ const Sidebar = ({ collapsed, onToggle }) => {
         )}
       </div>
 
+      {/* Tenant Info */}
+      {!collapsed && tenant && (
+        <div className="px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium truncate">{tenant.name}</span>
+          </div>
+          <Badge variant="outline" className="mt-1 text-xs">
+            {tenant.plan?.toUpperCase()}
+          </Badge>
+        </div>
+      )}
+
+      {/* SuperAdmin Badge */}
+      {!collapsed && isSuperAdmin && (
+        <div className="px-4 py-3 border-b border-border bg-amber-50 dark:bg-amber-900/20">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-amber-600" />
+            <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Super Admin
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <ScrollArea className="flex-1 py-4">
+        {/* SuperAdmin Section */}
+        {isSuperAdmin && (
+          <>
+            {!collapsed && (
+              <div className="px-4 mb-2">
+                <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">
+                  Sistema
+                </span>
+              </div>
+            )}
+            <nav className="px-3 space-y-1 mb-4">
+              {superAdminNavItems.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
+            </nav>
+            <Separator className="my-4 mx-3" />
+          </>
+        )}
+
         <nav className="px-3 space-y-1">
           {mainNavItems.map((item) => (
             <NavItem key={item.href} item={item} />

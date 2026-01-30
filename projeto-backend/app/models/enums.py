@@ -2,9 +2,10 @@ from enum import Enum
 
 
 class UserRole(str, Enum):
-    ADMIN = "admin"
-    FORMADOR = "formador"
-    USER = "user"
+    SUPERADMIN = "superadmin"  # Can manage all tenants
+    ADMIN = "admin"            # Admin of a specific tenant
+    FORMADOR = "formador"      # Formador within a tenant
+    USER = "user"              # Regular user within a tenant
 
 
 class UserStatus(str, Enum):

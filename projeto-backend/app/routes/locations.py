@@ -6,7 +6,7 @@ import uuid
 from app.database import db
 from app.models import LocationCreate, LocationUpdate, LocationResponse
 from app.models.enums import UserStatus
-from app.utils.security import get_current_user, require_admin
+from app.utils.security import get_current_user, require_admin, get_tenant_filter
 from app.utils.audit import log_action
 
 router = APIRouter()
@@ -20,7 +20,7 @@ async def list_locations(
     status: Optional[UserStatus] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    query = get_tenant_filter(current_user)
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
     if status:
@@ -33,7 +33,10 @@ async def list_locations(
 
 @router.get("/{location_id}", response_model=LocationResponse)
 async def get_location(location_id: str, current_user: dict = Depends(get_current_user)):
-    location = await db.locations.find_one({"id": location_id}, {"_id": 0})
+    query = get_tenant_filter(current_user)
+    query["id"] = location_id
+
+    location = await db.locations.find_one(query, {"_id": 0})
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
     return location
@@ -44,6 +47,7 @@ async def create_location(location_data: LocationCreate, current_user: dict = De
     now = datetime.now(timezone.utc).isoformat()
     location_dict = location_data.model_dump()
     location_dict["id"] = str(uuid.uuid4())
+    location_dict["tenant_id"] = current_user.get("tenant_id")
     location_dict["created_at"] = now
     location_dict["updated_at"] = now
 
@@ -58,7 +62,10 @@ async def create_location(location_data: LocationCreate, current_user: dict = De
 
 @router.put("/{location_id}", response_model=LocationResponse)
 async def update_location(location_id: str, location_data: LocationUpdate, current_user: dict = Depends(require_admin)):
-    existing = await db.locations.find_one({"id": location_id})
+    query = get_tenant_filter(current_user)
+    query["id"] = location_id
+
+    existing = await db.locations.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Location not found")
 
@@ -77,7 +84,10 @@ async def update_location(location_id: str, location_data: LocationUpdate, curre
 
 @router.delete("/{location_id}")
 async def delete_location(location_id: str, current_user: dict = Depends(require_admin)):
-    existing = await db.locations.find_one({"id": location_id})
+    query = get_tenant_filter(current_user)
+    query["id"] = location_id
+
+    existing = await db.locations.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Location not found")
 

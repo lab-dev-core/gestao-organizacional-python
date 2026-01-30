@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from app.database import db
 from app.models import AuditLogResponse
-from app.utils.security import require_admin
+from app.utils.security import require_admin, get_tenant_filter
 
 router = APIRouter()
 
@@ -17,7 +17,10 @@ async def list_audit_logs(
     resource_type: Optional[str] = None,
     current_user: dict = Depends(require_admin)
 ):
-    query = {}
+    # Get tenant filter - superadmin sees all, others see only their tenant
+    tenant_filter = get_tenant_filter(current_user)
+    query = {**tenant_filter}
+
     if user_id:
         query["user_id"] = user_id
     if action:

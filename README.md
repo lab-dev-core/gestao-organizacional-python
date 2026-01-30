@@ -4,62 +4,77 @@ Sistema completo para gestão organizacional com gerenciamento de usuários, doc
 
 ## Estrutura do Projeto
 
-Este repositório contém dois projetos independentes:
-
 ```
 ├── projeto-frontend/    # Aplicação React (Frontend)
-└── projeto-backend/     # API FastAPI (Backend)
+├── projeto-backend/     # API FastAPI (Backend)
+├── docker-compose.yml   # Orquestração dos containers
+└── .env.example         # Variáveis de ambiente (exemplo)
 ```
 
-## Projetos
+## Executando com Docker (Recomendado)
 
-### Frontend (`projeto-frontend/`)
-
-Aplicação web desenvolvida em React com TailwindCSS e componentes ShadCN.
+A maneira mais fácil de executar o projeto completo:
 
 ```bash
-cd projeto-frontend
-npm install
-npm start
+# Copiar variáveis de ambiente
+cp .env.example .env
+
+# Subir todos os serviços
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
 ```
 
-Acesse: http://localhost:3000
+Acesse:
+- **Frontend:** http://localhost
+- **Backend API:** http://localhost:8000
+- **Swagger Docs:** http://localhost:8000/docs
 
-[Ver documentação completa do Frontend](./projeto-frontend/README.md)
+Para parar:
+```bash
+docker-compose down
+```
 
-### Backend (`projeto-backend/`)
+## Executando Manualmente
 
-API REST desenvolvida em Python com FastAPI e MongoDB.
+### Pré-requisitos
+- Node.js 18+
+- Python 3.10+
+- MongoDB
+
+### Backend
 
 ```bash
 cd projeto-backend
+cp .env.example .env
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# ou .\venv\Scripts\activate no Windows
 pip install -r requirements.txt
 uvicorn server:app --reload --port 8000
 ```
 
-Acesse: http://localhost:8000/docs
+### Frontend
 
-[Ver documentação completa do Backend](./projeto-backend/README.md)
+```bash
+cd projeto-frontend
+cp .env.example .env
+npm install --legacy-peer-deps
+npm start
+```
 
-## Executando o Sistema Completo
+## Credenciais Padrão
 
-1. **Inicie o MongoDB** (necessário para o backend)
+Ao iniciar o backend pela primeira vez, um admin é criado automaticamente:
 
-2. **Inicie o Backend:**
-   ```bash
-   cd projeto-backend
-   uvicorn server:app --reload --port 8000
-   ```
-
-3. **Inicie o Frontend:**
-   ```bash
-   cd projeto-frontend
-   npm start
-   ```
+- **Email:** admin@admin.com
+- **Senha:** admin123
 
 ## Funcionalidades
 
 - Autenticação JWT com roles (admin, formador, user)
+- Recuperação de senha por email
 - Gerenciamento de usuários
 - Upload e gestão de documentos
 - Upload e gestão de vídeos com tracking de progresso
@@ -68,3 +83,26 @@ Acesse: http://localhost:8000/docs
 - Logs de auditoria
 - Tema claro/escuro
 - Suporte a múltiplos idiomas
+
+## Estrutura do Backend (v2.0)
+
+```
+projeto-backend/
+├── app/
+│   ├── main.py           # Aplicação FastAPI
+│   ├── config.py         # Configurações
+│   ├── database.py       # Conexão MongoDB
+│   ├── models/           # Modelos Pydantic
+│   ├── routes/           # Rotas da API
+│   ├── services/         # Serviços (PDF, Email)
+│   └── utils/            # Utilitários (auth, permissions)
+├── server.py             # Entry point
+├── Dockerfile
+├── requirements.txt
+└── .env.example
+```
+
+## Documentação
+
+- [Frontend README](./projeto-frontend/README.md)
+- [Backend README](./projeto-backend/README.md)

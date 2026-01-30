@@ -1,0 +1,77 @@
+from fastapi import APIRouter, HTTPException, Depends, Query
+from datetime import datetime, timezone
+from typing import List, Optional
+import uuid
+
+from app.database import db
+from app.models import FunctionCreate, FunctionUpdate, FunctionResponse
+from app.utils.security import get_current_user, require_admin
+from app.utils.audit import log_action
+
+router = APIRouter()
+
+
+@router.get("", response_model=List[FunctionResponse])
+async def list_functions(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    search: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
+
+    skip = (page - 1) * limit
+    functions = await db.functions.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    return functions
+
+
+@router.get("/{function_id}", response_model=FunctionResponse)
+async def get_function(function_id: str, current_user: dict = Depends(get_current_user)):
+    function = await db.functions.find_one({"id": function_id}, {"_id": 0})
+    if not function:
+        raise HTTPException(status_code=404, detail="Function not found")
+    return function
+
+
+@router.post("", response_model=FunctionResponse)
+async def create_function(function_data: FunctionCreate, current_user: dict = Depends(require_admin)):
+    now = datetime.now(timezone.utc).isoformat()
+    function_dict = function_data.model_dump()
+    function_dict["id"] = str(uuid.uuid4())
+    function_dict["created_at"] = now
+    function_dict["updated_at"] = now
+
+    await db.functions.insert_one(function_dict)
+    await log_action(current_user["id"], current_user["full_name"], "create", "function", function_dict["id"], {"name": function_dict["name"]})
+
+    return function_dict
+
+
+@router.put("/{function_id}", response_model=FunctionResponse)
+async def update_function(function_id: str, function_data: FunctionUpdate, current_user: dict = Depends(require_admin)):
+    existing = await db.functions.find_one({"id": function_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Function not found")
+
+    update_dict = {k: v for k, v in function_data.model_dump().items() if v is not None}
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    await db.functions.update_one({"id": function_id}, {"$set": update_dict})
+    await log_action(current_user["id"], current_user["full_name"], "update", "function", function_id)
+
+    updated = await db.functions.find_one({"id": function_id}, {"_id": 0})
+    return updated
+
+
+@router.delete("/{function_id}")
+async def delete_function(function_id: str, current_user: dict = Depends(require_admin)):
+    existing = await db.functions.find_one({"id": function_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Function not found")
+
+    await db.functions.delete_one({"id": function_id})
+    await log_action(current_user["id"], current_user["full_name"], "delete", "function", function_id, {"name": existing["name"]})
+
+    return {"message": "Function deleted successfully"}

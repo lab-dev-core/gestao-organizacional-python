@@ -21,6 +21,7 @@ import FunctionsPage from './pages/Functions';
 import FormativeStagesPage from './pages/FormativeStages';
 import AuditLogsPage from './pages/AuditLogs';
 import ProfilePage from './pages/Profile';
+import TenantsPage from './pages/Tenants';
 
 import './App.css';
 
@@ -46,6 +47,7 @@ function App() {
                 <Route path="/functions" element={<FunctionsPage />} />
                 <Route path="/formative-stages" element={<FormativeStagesPage />} />
                 <Route path="/audit-logs" element={<AuditLogsPage />} />
+                <Route path="/tenants" element={<TenantsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/settings" element={<ProfilePage />} />
               </Route>

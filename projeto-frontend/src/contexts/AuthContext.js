@@ -7,6 +7,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,6 +31,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
       setUser(userData);
+      if (userData.tenant) {
+        setTenant(userData.tenant);
+      }
       return access_token;
     } catch (err) {
       logout();
@@ -50,6 +54,9 @@ export const AuthProvider = ({ children }) => {
       });
 
       setUser(response.data);
+      if (response.data.tenant) {
+        setTenant(response.data.tenant);
+      }
     } catch (err) {
       if (err.response?.status === 401) {
         try {
@@ -69,15 +76,26 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const login = async (email, password) => {
+  const login = async (email, password, tenantSlug = null) => {
     try {
       setError(null);
-      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+      const payload = { email, password };
+      if (tenantSlug) {
+        payload.tenant_slug = tenantSlug;
+      }
+
+      const response = await axios.post(`${API_URL}/auth/login`, payload);
       const { access_token, refresh_token, user: userData } = response.data;
 
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
+      if (tenantSlug) {
+        localStorage.setItem('tenant_slug', tenantSlug);
+      }
       setUser(userData);
+      if (userData.tenant) {
+        setTenant(userData.tenant);
+      }
 
       return userData;
     } catch (err) {
@@ -87,14 +105,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (userData) => {
+  const register = async (userData, tenantSlug = null) => {
     try {
       setError(null);
-      const response = await axios.post(`${API_URL}/auth/register`, userData);
+      const url = tenantSlug
+        ? `${API_URL}/auth/register?tenant_slug=${tenantSlug}`
+        : `${API_URL}/auth/register`;
+
+      const response = await axios.post(url, userData);
       const { access_token, refresh_token, user: newUser } = response.data;
 
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
+      if (tenantSlug) {
+        localStorage.setItem('tenant_slug', tenantSlug);
+      }
       setUser(newUser);
 
       return newUser;
@@ -108,19 +133,33 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('tenant_slug');
     setUser(null);
+    setTenant(null);
   };
 
   const updateUser = (updatedData) => {
     setUser(prev => ({ ...prev, ...updatedData }));
   };
 
-  const isAdmin = user?.role === 'admin';
+  const getTenantBySlug = async (slug) => {
+    try {
+      const response = await axios.get(`${API_URL}/tenants/slug/${slug}`);
+      return response.data;
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const isSuperAdmin = user?.role === 'superadmin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const isFormador = user?.role === 'formador';
   const isUser = user?.role === 'user';
+  const isTenantOwner = user?.is_tenant_owner === true;
 
   const value = {
     user,
+    tenant,
     loading,
     error,
     login,
@@ -129,9 +168,12 @@ export const AuthProvider = ({ children }) => {
     updateUser,
     getAuthHeaders,
     refreshToken,
+    getTenantBySlug,
+    isSuperAdmin,
     isAdmin,
     isFormador,
     isUser,
+    isTenantOwner,
     isAuthenticated: !!user
   };
 

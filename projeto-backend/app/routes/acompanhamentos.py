@@ -7,7 +7,7 @@ import uuid
 from app.database import db
 from app.models import AcompanhamentoCreate, AcompanhamentoUpdate, AcompanhamentoResponse
 from app.models.enums import UserRole, UserStatus
-from app.utils.security import get_current_user, require_formador
+from app.utils.security import get_current_user, require_formador, get_tenant_filter
 from app.utils.audit import log_action
 from app.services.pdf import generate_acompanhamento_pdf
 
@@ -17,8 +17,9 @@ router = APIRouter()
 @router.get("/my-formandos")
 async def get_my_formandos(current_user: dict = Depends(require_formador)):
     """Get list of users that have this formador as their responsible"""
+    tenant_filter = get_tenant_filter(current_user)
     formandos = await db.users.find(
-        {"formador_id": current_user["id"], "status": UserStatus.ACTIVE},
+        {**tenant_filter, "formador_id": current_user["id"], "status": UserStatus.ACTIVE},
         {"_id": 0, "password": 0}
     ).to_list(1000)
     return formandos
@@ -32,16 +33,20 @@ async def list_acompanhamentos(
     formative_stage_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    # Get tenant filter - superadmin sees all, others see only their tenant
+    tenant_filter = get_tenant_filter(current_user)
+    query = {**tenant_filter}
 
     if current_user.get("role") == UserRole.ADMIN:
-        pass
+        pass  # Admin sees all within tenant (filter already applied)
+    elif current_user.get("role") == UserRole.SUPERADMIN:
+        pass  # Superadmin sees all (no tenant filter)
     elif current_user.get("role") == UserRole.FORMADOR:
         query["formador_id"] = current_user["id"]
     else:
         query["user_id"] = current_user["id"]
 
-    if user_id and current_user.get("role") in [UserRole.ADMIN, UserRole.FORMADOR]:
+    if user_id and current_user.get("role") in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]:
         query["user_id"] = user_id
 
     if formative_stage_id:
@@ -55,7 +60,8 @@ async def list_acompanhamentos(
 @router.get("/count-by-stage")
 async def get_acompanhamentos_count_by_stage(current_user: dict = Depends(get_current_user)):
     """Get count of acompanhamentos per formative stage"""
-    query = {}
+    tenant_filter = get_tenant_filter(current_user)
+    query = {**tenant_filter}
 
     if current_user.get("role") == UserRole.FORMADOR:
         query["formador_id"] = current_user["id"]
@@ -82,7 +88,8 @@ async def export_acompanhamentos_pdf(
     current_user: dict = Depends(get_current_user)
 ):
     """Export multiple acompanhamentos as PDF"""
-    query = {}
+    tenant_filter = get_tenant_filter(current_user)
+    query = {**tenant_filter}
 
     if current_user.get("role") == UserRole.USER:
         query["user_id"] = current_user["id"]
@@ -128,7 +135,8 @@ async def export_acompanhamentos_pdf(
 
 @router.get("/{acomp_id}", response_model=AcompanhamentoResponse)
 async def get_acompanhamento(acomp_id: str, current_user: dict = Depends(get_current_user)):
-    acomp = await db.acompanhamentos.find_one({"id": acomp_id}, {"_id": 0})
+    tenant_filter = get_tenant_filter(current_user)
+    acomp = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id}, {"_id": 0})
     if not acomp:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
@@ -147,17 +155,19 @@ async def create_acompanhamento(
     acomp_data: AcompanhamentoCreate,
     current_user: dict = Depends(require_formador)
 ):
-    target_user = await db.users.find_one({"id": acomp_data.user_id}, {"_id": 0, "password": 0})
+    tenant_filter = get_tenant_filter(current_user)
+    target_user = await db.users.find_one({**tenant_filter, "id": acomp_data.user_id}, {"_id": 0, "password": 0})
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if current_user.get("role") != UserRole.ADMIN:
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         if target_user.get("formador_id") != current_user["id"]:
             raise HTTPException(status_code=403, detail="You can only create follow-ups for your assigned users")
 
     now = datetime.now(timezone.utc).isoformat()
     acomp_dict = acomp_data.model_dump()
     acomp_dict["id"] = str(uuid.uuid4())
+    acomp_dict["tenant_id"] = current_user.get("tenant_id")
     acomp_dict["formador_id"] = current_user["id"]
     acomp_dict["formador_name"] = current_user["full_name"]
     acomp_dict["user_name"] = target_user["full_name"]
@@ -168,7 +178,7 @@ async def create_acompanhamento(
         acomp_dict["formative_stage_id"] = target_user.get("formative_stage_id")
 
     await db.acompanhamentos.insert_one(acomp_dict)
-    await log_action(current_user["id"], current_user["full_name"], "create", "acompanhamento", acomp_dict["id"], {"user": target_user["full_name"]})
+    await log_action(current_user["id"], current_user["full_name"], "create", "acompanhamento", acomp_dict["id"], {"user": target_user["full_name"]}, current_user.get("tenant_id"))
 
     return acomp_dict
 
@@ -179,36 +189,38 @@ async def update_acompanhamento(
     acomp_data: AcompanhamentoUpdate,
     current_user: dict = Depends(require_formador)
 ):
-    existing = await db.acompanhamentos.find_one({"id": acomp_id})
+    tenant_filter = get_tenant_filter(current_user)
+    existing = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") != UserRole.ADMIN:
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         if existing["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="You can only edit your own follow-ups")
 
     update_dict = {k: v for k, v in acomp_data.model_dump().items() if v is not None}
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    await db.acompanhamentos.update_one({"id": acomp_id}, {"$set": update_dict})
-    await log_action(current_user["id"], current_user["full_name"], "update", "acompanhamento", acomp_id)
+    await db.acompanhamentos.update_one({**tenant_filter, "id": acomp_id}, {"$set": update_dict})
+    await log_action(current_user["id"], current_user["full_name"], "update", "acompanhamento", acomp_id, None, current_user.get("tenant_id"))
 
-    updated = await db.acompanhamentos.find_one({"id": acomp_id}, {"_id": 0})
+    updated = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id}, {"_id": 0})
     return updated
 
 
 @router.delete("/{acomp_id}")
 async def delete_acompanhamento(acomp_id: str, current_user: dict = Depends(require_formador)):
-    existing = await db.acompanhamentos.find_one({"id": acomp_id})
+    tenant_filter = get_tenant_filter(current_user)
+    existing = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") != UserRole.ADMIN:
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
         if existing["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="You can only delete your own follow-ups")
 
-    await db.acompanhamentos.delete_one({"id": acomp_id})
-    await log_action(current_user["id"], current_user["full_name"], "delete", "acompanhamento", acomp_id)
+    await db.acompanhamentos.delete_one({**tenant_filter, "id": acomp_id})
+    await log_action(current_user["id"], current_user["full_name"], "delete", "acompanhamento", acomp_id, None, current_user.get("tenant_id"))
 
     return {"message": "Acompanhamento deleted successfully"}
 
@@ -216,7 +228,8 @@ async def delete_acompanhamento(acomp_id: str, current_user: dict = Depends(requ
 @router.get("/{acomp_id}/pdf")
 async def export_acompanhamento_pdf(acomp_id: str, current_user: dict = Depends(get_current_user)):
     """Export a single acompanhamento as PDF"""
-    acomp = await db.acompanhamentos.find_one({"id": acomp_id}, {"_id": 0})
+    tenant_filter = get_tenant_filter(current_user)
+    acomp = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id}, {"_id": 0})
     if not acomp:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 

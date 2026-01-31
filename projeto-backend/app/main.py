@@ -66,6 +66,11 @@ async def startup_event():
     await db.formative_stages.create_index("tenant_id")
     await db.user_journey.create_index("tenant_id")
     await db.user_journey.create_index("user_id")
+    await db.stage_cycles.create_index("tenant_id")
+    await db.stage_cycles.create_index("formative_stage_id")
+    await db.stage_participations.create_index("tenant_id")
+    await db.stage_participations.create_index("cycle_id")
+    await db.stage_participations.create_index("user_id")
 
     logger.info("Database indexes created")
 

@@ -17,16 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Progress } from '../components/ui/progress';
 import { JourneyTimeline } from '../components/ui/journey-timeline';
 import {
-  Search,
-  Users,
-  TrendingUp,
-  GraduationCap,
-  Plus,
-  Eye,
-  Calendar,
-  User,
-  ArrowRight,
-  BarChart3
+  Search, Users, GraduationCap, Plus, Eye, Calendar, User, ArrowRight,
+  BarChart3, CheckCircle, XCircle, Clock, UserPlus, Play
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,36 +30,46 @@ const UserJourneyPage = () => {
 
   const [users, setUsers] = useState([]);
   const [stages, setStages] = useState([]);
+  const [cycles, setCycles] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('all');
 
   // Modal de visualização de jornada
   const [selectedUser, setSelectedUser] = useState(null);
-  const [userJourney, setUserJourney] = useState([]);
+  const [userJourney, setUserJourney] = useState(null);
   const [journeyDialogOpen, setJourneyDialogOpen] = useState(false);
   const [loadingJourney, setLoadingJourney] = useState(false);
 
-  // Modal de registrar transição
-  const [transitionDialogOpen, setTransitionDialogOpen] = useState(false);
-  const [transitionData, setTransitionData] = useState({
+  // Modal de inscrição em ciclo
+  const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
+  const [enrollData, setEnrollData] = useState({
     user_id: '',
-    to_stage_id: '',
+    cycle_id: '',
     notes: ''
+  });
+
+  // Modal de avaliação
+  const [evaluateDialogOpen, setEvaluateDialogOpen] = useState(false);
+  const [evaluateData, setEvaluateData] = useState({
+    participation_id: '',
+    action: '',
+    evaluation_notes: ''
   });
 
   const fetchData = useCallback(async () => {
     try {
       const headers = getAuthHeaders();
-      const [usersRes, stagesRes, statsRes] = await Promise.all([
+      const [usersRes, stagesRes, cyclesRes, statsRes] = await Promise.all([
         axios.get(`${API_URL}/users`, { headers, params: { limit: 100 } }),
         axios.get(`${API_URL}/formative-stages`, { headers }),
-        axios.get(`${API_URL}/user-journey/stats/by-stage`, { headers })
+        axios.get(`${API_URL}/stage-cycles/active`, { headers }),
+        axios.get(`${API_URL}/stage-participations/stats/overview`, { headers })
       ]);
 
       setUsers(usersRes.data);
       setStages(stagesRes.data.sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setCycles(cyclesRes.data);
       setStats(statsRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -88,7 +90,7 @@ const UserJourneyPage = () => {
 
     try {
       const headers = getAuthHeaders();
-      const response = await axios.get(`${API_URL}/user-journey/user/${user.id}`, { headers });
+      const response = await axios.get(`${API_URL}/stage-participations/user/${user.id}/journey`, { headers });
       setUserJourney(response.data);
     } catch (error) {
       console.error('Error fetching journey:', error);
@@ -98,38 +100,67 @@ const UserJourneyPage = () => {
     }
   };
 
-  const handleOpenTransitionDialog = (user = null) => {
-    setTransitionData({
+  const handleOpenEnrollDialog = (user = null) => {
+    setEnrollData({
       user_id: user?.id || '',
-      to_stage_id: '',
+      cycle_id: '',
       notes: ''
     });
-    setTransitionDialogOpen(true);
+    setEnrollDialogOpen(true);
   };
 
-  const handleCreateTransition = async (e) => {
+  const handleEnroll = async (e) => {
     e.preventDefault();
     try {
       const headers = getAuthHeaders();
-      await axios.post(
-        `${API_URL}/user-journey/user/${transitionData.user_id}`,
-        {
-          to_stage_id: transitionData.to_stage_id,
-          notes: transitionData.notes || null
-        },
-        { headers }
-      );
+      await axios.post(`${API_URL}/stage-participations`, enrollData, { headers });
 
-      toast.success(t('journeyTransitionCreated'));
-      setTransitionDialogOpen(false);
+      toast.success(t('userEnrolled'));
+      setEnrollDialogOpen(false);
       fetchData();
 
-      // Atualizar jornada se o dialog estiver aberto
-      if (journeyDialogOpen && selectedUser?.id === transitionData.user_id) {
+      if (journeyDialogOpen && selectedUser?.id === enrollData.user_id) {
         fetchUserJourney(selectedUser);
       }
     } catch (error) {
-      console.error('Error creating transition:', error);
+      console.error('Error enrolling user:', error);
+      toast.error(error.response?.data?.detail || t('errorOccurred'));
+    }
+  };
+
+  const handleEvaluate = async (participationId, action) => {
+    setEvaluateData({
+      participation_id: participationId,
+      action: action,
+      evaluation_notes: ''
+    });
+    setEvaluateDialogOpen(true);
+  };
+
+  const submitEvaluation = async (e) => {
+    e.preventDefault();
+    try {
+      const headers = getAuthHeaders();
+      const endpoint = evaluateData.action === 'approve' ? 'approve' : 'reprove';
+
+      await axios.post(
+        `${API_URL}/stage-participations/${evaluateData.participation_id}/${endpoint}`,
+        null,
+        {
+          headers,
+          params: { evaluation_notes: evaluateData.evaluation_notes || null }
+        }
+      );
+
+      toast.success(evaluateData.action === 'approve' ? t('participantApproved') : t('participantReproved'));
+      setEvaluateDialogOpen(false);
+
+      if (journeyDialogOpen && selectedUser) {
+        fetchUserJourney(selectedUser);
+      }
+      fetchData();
+    } catch (error) {
+      console.error('Error evaluating:', error);
       toast.error(error.response?.data?.detail || t('errorOccurred'));
     }
   };
@@ -139,37 +170,34 @@ const UserJourneyPage = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const getStageName = (stageId) => {
-    const stage = stages.find(s => s.id === stageId);
-    return stage?.name || '-';
+  const getStatusBadge = (status) => {
+    const config = {
+      enrolled: { variant: 'secondary', icon: Clock, label: t('enrolled'), color: '' },
+      in_progress: { variant: 'default', icon: Play, label: t('inProgress'), color: '' },
+      approved: { variant: 'default', icon: CheckCircle, label: t('approved'), color: 'bg-green-500' },
+      reproved: { variant: 'destructive', icon: XCircle, label: t('reproved'), color: '' },
+      withdrawn: { variant: 'outline', icon: User, label: t('withdrawn'), color: '' },
+      transferred: { variant: 'outline', icon: ArrowRight, label: t('transferred'), color: '' }
+    };
+    const { variant, icon: Icon, label, color } = config[status] || config.enrolled;
+    return (
+      <Badge variant={variant} className={`gap-1 ${color}`}>
+        <Icon className="w-3 h-3" />
+        {label}
+      </Badge>
+    );
   };
 
-  const getStageProgress = (stageId) => {
-    if (!stageId || stages.length === 0) return 0;
-    const stageIndex = stages.findIndex(s => s.id === stageId);
-    if (stageIndex === -1) return 0;
-    return Math.round(((stageIndex + 1) / stages.length) * 100);
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.full_name?.toLowerCase().includes(search.toLowerCase()) ||
       user.email?.toLowerCase().includes(search.toLowerCase());
-    const matchesStage = stageFilter === 'all' ||
-      (stageFilter === 'none' ? !user.formative_stage_id : user.formative_stage_id === stageFilter);
-    return matchesSearch && matchesStage;
+    return matchesSearch;
   });
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   if (loading) {
     return (
@@ -189,9 +217,9 @@ const UserJourneyPage = () => {
         </div>
 
         {isAdmin && (
-          <Button onClick={() => handleOpenTransitionDialog()} data-testid="new-transition-btn">
-            <Plus className="w-4 h-4 mr-2" />
-            {t('newTransition')}
+          <Button onClick={() => handleOpenEnrollDialog()} data-testid="enroll-user-btn">
+            <UserPlus className="w-4 h-4 mr-2" />
+            {t('enrollUser')}
           </Button>
         )}
       </div>
@@ -203,11 +231,11 @@ const UserJourneyPage = () => {
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-lg bg-primary/10">
-                  <GraduationCap className="w-6 h-6 text-primary" />
+                  <Users className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{t('totalStages')}</p>
-                  <p className="text-2xl font-bold">{stats.total_stages}</p>
+                  <p className="text-sm text-muted-foreground">{t('usersInJourney')}</p>
+                  <p className="text-2xl font-bold">{stats.unique_users_in_journey}</p>
                 </div>
               </div>
             </CardContent>
@@ -217,27 +245,11 @@ const UserJourneyPage = () => {
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-lg bg-blue-500/10">
-                  <Users className="w-6 h-6 text-blue-500" />
+                  <Play className="w-6 h-6 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{t('usersInJourney')}</p>
-                  <p className="text-2xl font-bold">
-                    {users.length - stats.users_without_stage}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-amber-500/10">
-                  <User className="w-6 h-6 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{t('usersWithoutStage')}</p>
-                  <p className="text-2xl font-bold">{stats.users_without_stage}</p>
+                  <p className="text-sm text-muted-foreground">{t('activeCycles')}</p>
+                  <p className="text-2xl font-bold">{stats.active_cycles}</p>
                 </div>
               </div>
             </CardContent>
@@ -247,14 +259,26 @@ const UserJourneyPage = () => {
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-lg bg-green-500/10">
-                  <TrendingUp className="w-6 h-6 text-green-500" />
+                  <CheckCircle className="w-6 h-6 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{t('completionRate')}</p>
+                  <p className="text-sm text-muted-foreground">{t('approved')}</p>
+                  <p className="text-2xl font-bold">{stats.by_status?.approved || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-amber-500/10">
+                  <Clock className="w-6 h-6 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t('inProgress')}</p>
                   <p className="text-2xl font-bold">
-                    {users.length > 0
-                      ? Math.round(((users.length - stats.users_without_stage) / users.length) * 100)
-                      : 0}%
+                    {(stats.by_status?.enrolled || 0) + (stats.by_status?.in_progress || 0)}
                   </p>
                 </div>
               </div>
@@ -287,21 +311,8 @@ const UserJourneyPage = () => {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
-                    data-testid="journey-search-input"
                   />
                 </div>
-                <Select value={stageFilter} onValueChange={setStageFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="journey-stage-filter">
-                    <SelectValue placeholder={t('formativeStage')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('all')}</SelectItem>
-                    <SelectItem value="none">{t('withoutStage')}</SelectItem>
-                    {stages.map(stage => (
-                      <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </CardContent>
           </Card>
@@ -314,22 +325,21 @@ const UserJourneyPage = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('user')}</TableHead>
-                      <TableHead>{t('currentStage')}</TableHead>
-                      <TableHead>{t('progress')}</TableHead>
+                      <TableHead>{t('email')}</TableHead>
                       <TableHead className="text-right">{t('actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                           <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
                           <p>{t('noUsersFound')}</p>
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredUsers.map(user => (
-                        <TableRow key={user.id} data-testid={`journey-row-${user.id}`}>
+                        <TableRow key={user.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar>
@@ -338,34 +348,17 @@ const UserJourneyPage = () => {
                                   {getInitials(user.full_name)}
                                 </AvatarFallback>
                               </Avatar>
-                              <div>
-                                <span className="font-medium">{user.full_name}</span>
-                                <p className="text-sm text-muted-foreground">{user.email}</p>
-                              </div>
+                              <span className="font-medium">{user.full_name}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            {user.formative_stage_id ? (
-                              <Badge variant="outline">{getStageName(user.formative_stage_id)}</Badge>
-                            ) : (
-                              <Badge variant="secondary">{t('notStarted')}</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 min-w-[150px]">
-                              <Progress value={getStageProgress(user.formative_stage_id)} className="h-2" />
-                              <span className="text-sm text-muted-foreground">
-                                {getStageProgress(user.formative_stage_id)}%
-                              </span>
-                            </div>
-                          </TableCell>
+                          <TableCell className="text-muted-foreground">{user.email}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => fetchUserJourney(user)}
-                                data-testid={`view-journey-${user.id}`}
+                                title={t('viewJourney')}
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -373,8 +366,8 @@ const UserJourneyPage = () => {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleOpenTransitionDialog(user)}
-                                  data-testid={`add-transition-${user.id}`}
+                                  onClick={() => handleOpenEnrollDialog(user)}
+                                  title={t('enrollInCycle')}
                                 >
                                   <Plus className="w-4 h-4" />
                                 </Button>
@@ -392,54 +385,21 @@ const UserJourneyPage = () => {
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Distribution by Stage */}
           <Card>
             <CardHeader>
-              <CardTitle>{t('distributionByStage')}</CardTitle>
-              <CardDescription>{t('distributionByStageDescription')}</CardDescription>
+              <CardTitle>{t('participationsByStatus')}</CardTitle>
+              <CardDescription>{t('participationsByStatusDescription')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats?.stages.map((stageStat, index) => (
-                  <div key={stageStat.stage_id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
-                          {index + 1}
-                        </div>
-                        <span className="font-medium">{stageStat.stage_name}</span>
-                        {stageStat.estimated_duration && (
-                          <span className="text-xs text-muted-foreground">
-                            ({stageStat.estimated_duration})
-                          </span>
-                        )}
-                      </div>
-                      <Badge variant="secondary">{stageStat.user_count} {t('users').toLowerCase()}</Badge>
+                {stats && Object.entries(stats.by_status || {}).map(([status, count]) => (
+                  <div key={status} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(status)}
                     </div>
-                    <Progress
-                      value={users.length > 0 ? (stageStat.user_count / users.length) * 100 : 0}
-                      className="h-2"
-                    />
+                    <span className="font-medium">{count}</span>
                   </div>
                 ))}
-
-                {stats?.users_without_stage > 0 && (
-                  <div className="space-y-2 pt-4 border-t">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-muted-foreground">
-                          -
-                        </div>
-                        <span className="font-medium text-muted-foreground">{t('withoutStage')}</span>
-                      </div>
-                      <Badge variant="outline">{stats.users_without_stage} {t('users').toLowerCase()}</Badge>
-                    </div>
-                    <Progress
-                      value={users.length > 0 ? (stats.users_without_stage / users.length) * 100 : 0}
-                      className="h-2 bg-muted"
-                    />
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -473,55 +433,97 @@ const UserJourneyPage = () => {
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : (
+            ) : userJourney ? (
               <div className="space-y-6">
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-primary">{userJourney.journey_progress_percent}%</p>
+                      <p className="text-sm text-muted-foreground">{t('progress')}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold">{userJourney.total_stages_completed}</p>
+                      <p className="text-sm text-muted-foreground">{t('stagesCompleted')}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-lg font-medium truncate">{userJourney.current_stage || '-'}</p>
+                      <p className="text-sm text-muted-foreground">{t('currentStage')}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 {/* Timeline Visual */}
                 <JourneyTimeline
                   stages={stages}
-                  journeyRecords={userJourney}
-                  currentStageId={selectedUser?.formative_stage_id}
+                  journeyRecords={userJourney.participations?.filter(p => p.status === 'approved').map(p => ({
+                    to_stage_id: p.stage_id,
+                    transition_date: p.completion_date
+                  })) || []}
+                  currentStageId={userJourney.participations?.find(p => ['enrolled', 'in_progress'].includes(p.status))?.stage_id}
                 />
 
-                {/* Histórico Detalhado */}
-                {userJourney.length > 0 && (
+                {/* Participations List */}
+                {userJourney.participations?.length > 0 && (
                   <div className="pt-6 border-t">
-                    <h4 className="font-medium mb-4">{t('transitionHistory')}</h4>
+                    <h4 className="font-medium mb-4">{t('participationHistory')}</h4>
                     <div className="space-y-3">
-                      {userJourney.map((record, index) => (
-                        <Card key={record.id} className="bg-muted/50">
+                      {userJourney.participations.map((participation) => (
+                        <Card key={participation.id} className="bg-muted/50">
                           <CardContent className="p-4">
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                <ArrowRight className="w-4 h-4 text-primary" />
-                              </div>
+                            <div className="flex items-start justify-between">
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {record.from_stage_name ? (
-                                    <>
-                                      <Badge variant="outline">{record.from_stage_name}</Badge>
-                                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                                    </>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">{t('startedIn')}</span>
-                                  )}
-                                  <Badge>{record.to_stage_name}</Badge>
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  <Badge variant="outline">{participation.stage_name}</Badge>
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium">{participation.cycle_name}</span>
                                 </div>
+                                {getStatusBadge(participation.status)}
                                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                                   <span className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
-                                    {formatDate(record.transition_date)}
+                                    {t('enrolled')}: {formatDate(participation.enrollment_date)}
                                   </span>
-                                  <span className="flex items-center gap-1">
-                                    <User className="w-3 h-3" />
-                                    {record.changed_by_name}
-                                  </span>
+                                  {participation.completion_date && (
+                                    <span className="flex items-center gap-1">
+                                      <CheckCircle className="w-3 h-3" />
+                                      {t('completed')}: {formatDate(participation.completion_date)}
+                                    </span>
+                                  )}
                                 </div>
-                                {record.notes && (
+                                {participation.evaluation_notes && (
                                   <p className="mt-2 text-sm text-muted-foreground italic">
-                                    "{record.notes}"
+                                    "{participation.evaluation_notes}"
                                   </p>
                                 )}
                               </div>
+
+                              {isAdmin && ['enrolled', 'in_progress'].includes(participation.status) && (
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-600 border-green-600 hover:bg-green-50"
+                                    onClick={() => handleEvaluate(participation.id, 'approve')}
+                                  >
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    {t('approve')}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-red-600 border-red-600 hover:bg-red-50"
+                                    onClick={() => handleEvaluate(participation.id, 'reprove')}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    {t('reprove')}
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -530,14 +532,14 @@ const UserJourneyPage = () => {
                   </div>
                 )}
 
-                {userJourney.length === 0 && !loadingJourney && (
+                {(!userJourney.participations || userJourney.participations.length === 0) && (
                   <div className="text-center py-8 text-muted-foreground">
                     <GraduationCap className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>{t('noJourneyRecords')}</p>
+                    <p>{t('noParticipations')}</p>
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
           </ScrollArea>
 
           <DialogFooter>
@@ -545,35 +547,35 @@ const UserJourneyPage = () => {
               <Button variant="outline">{t('close')}</Button>
             </DialogClose>
             {isAdmin && selectedUser && (
-              <Button onClick={() => handleOpenTransitionDialog(selectedUser)}>
+              <Button onClick={() => handleOpenEnrollDialog(selectedUser)}>
                 <Plus className="w-4 h-4 mr-2" />
-                {t('addTransition')}
+                {t('enrollInCycle')}
               </Button>
             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de Nova Transição */}
-      <Dialog open={transitionDialogOpen} onOpenChange={setTransitionDialogOpen}>
+      {/* Dialog de Inscrição em Ciclo */}
+      <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('newTransition')}</DialogTitle>
+            <DialogTitle>{t('enrollUser')}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateTransition} className="space-y-4">
+          <form onSubmit={handleEnroll} className="space-y-4">
             <div className="space-y-2">
               <Label>{t('user')} *</Label>
               <Select
-                value={transitionData.user_id}
-                onValueChange={(v) => setTransitionData(prev => ({ ...prev, user_id: v }))}
+                value={enrollData.user_id}
+                onValueChange={(v) => setEnrollData(prev => ({ ...prev, user_id: v }))}
               >
-                <SelectTrigger data-testid="transition-user-select">
+                <SelectTrigger>
                   <SelectValue placeholder={t('selectUser')} />
                 </SelectTrigger>
                 <SelectContent>
                   {users.map(user => (
                     <SelectItem key={user.id} value={user.id}>
-                      {user.full_name} - {getStageName(user.formative_stage_id) || t('withoutStage')}
+                      {user.full_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -581,18 +583,18 @@ const UserJourneyPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>{t('newStage')} *</Label>
+              <Label>{t('cycle')} *</Label>
               <Select
-                value={transitionData.to_stage_id}
-                onValueChange={(v) => setTransitionData(prev => ({ ...prev, to_stage_id: v }))}
+                value={enrollData.cycle_id}
+                onValueChange={(v) => setEnrollData(prev => ({ ...prev, cycle_id: v }))}
               >
-                <SelectTrigger data-testid="transition-stage-select">
-                  <SelectValue placeholder={t('selectStage')} />
+                <SelectTrigger>
+                  <SelectValue placeholder={t('selectCycle')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {stages.map(stage => (
-                    <SelectItem key={stage.id} value={stage.id}>
-                      {stage.order}. {stage.name}
+                  {cycles.map(cycle => (
+                    <SelectItem key={cycle.id} value={cycle.id}>
+                      {cycle.stage_name} - {cycle.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -602,11 +604,10 @@ const UserJourneyPage = () => {
             <div className="space-y-2">
               <Label>{t('notes')}</Label>
               <Textarea
-                value={transitionData.notes}
-                onChange={(e) => setTransitionData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder={t('transitionNotesPlaceholder')}
-                rows={3}
-                data-testid="transition-notes-input"
+                value={enrollData.notes}
+                onChange={(e) => setEnrollData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder={t('enrollmentNotesPlaceholder')}
+                rows={2}
               />
             </div>
 
@@ -616,10 +617,43 @@ const UserJourneyPage = () => {
               </DialogClose>
               <Button
                 type="submit"
-                disabled={!transitionData.user_id || !transitionData.to_stage_id}
-                data-testid="transition-submit-btn"
+                disabled={!enrollData.user_id || !enrollData.cycle_id}
               >
-                {t('save')}
+                {t('enroll')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Avaliação */}
+      <Dialog open={evaluateDialogOpen} onOpenChange={setEvaluateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {evaluateData.action === 'approve' ? t('approveParticipant') : t('reproveParticipant')}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitEvaluation} className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t('evaluationNotes')}</Label>
+              <Textarea
+                value={evaluateData.evaluation_notes}
+                onChange={(e) => setEvaluateData(prev => ({ ...prev, evaluation_notes: e.target.value }))}
+                placeholder={t('evaluationNotesPlaceholder')}
+                rows={3}
+              />
+            </div>
+
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">{t('cancel')}</Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                variant={evaluateData.action === 'approve' ? 'default' : 'destructive'}
+              >
+                {evaluateData.action === 'approve' ? t('approve') : t('reprove')}
               </Button>
             </DialogFooter>
           </form>

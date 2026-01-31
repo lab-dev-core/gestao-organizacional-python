@@ -1,0 +1,19 @@
+[Unit]
+Description=Gestao Organizacional Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/gestao-organizacional-python/projeto-backend
+Environment=ENVIRONMENT=production
+ExecStart=/usr/bin/python3 server.py
+Restart=always
+RestartSec=10
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

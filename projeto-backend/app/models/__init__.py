@@ -16,3 +16,5 @@ from app.models.video import VideoBase, VideoCreate, VideoUpdate, VideoResponse,
 from app.models.acompanhamento import AcompanhamentoBase, AcompanhamentoCreate, AcompanhamentoUpdate, AcompanhamentoResponse
 from app.models.audit import AuditLogResponse
 from app.models.user_journey import UserJourneyBase, UserJourneyCreate, UserJourneyResponse
+from app.models.stage_cycle import CycleStatus, StageCycleBase, StageCycleCreate, StageCycleUpdate, StageCycleResponse
+from app.models.stage_participation import ParticipationStatus, StageParticipationBase, StageParticipationCreate, StageParticipationUpdate, StageParticipationResponse, UserJourneyFullResponse

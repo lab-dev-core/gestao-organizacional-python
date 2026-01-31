@@ -17,7 +17,8 @@ import {
   MessageSquare,
   Building2,
   Shield,
-  Route
+  Route,
+  CalendarDays
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -42,6 +43,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: MapPin, label: t('locations'), href: '/locations' },
     { icon: Briefcase, label: t('functions'), href: '/functions' },
     { icon: GraduationCap, label: t('formativeStages'), href: '/formative-stages' },
+    { icon: CalendarDays, label: t('stageCycles'), href: '/stage-cycles' },
     { icon: ClipboardList, label: t('auditLogs'), href: '/audit-logs' },
   ];
 

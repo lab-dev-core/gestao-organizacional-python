@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
@@ -14,11 +14,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/stats/dashboard`, {
         headers: getAuthHeaders()
@@ -29,7 +25,11 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const StatCard = ({ icon: Icon, title, value, subtitle, color }) => (
     <Card className="card-hover border-0 shadow-md" data-testid={`stat-card-${title.toLowerCase().replace(/\s/g, '-')}`}>

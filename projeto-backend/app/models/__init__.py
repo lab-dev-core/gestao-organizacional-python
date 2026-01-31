@@ -15,3 +15,4 @@ from app.models.document import PermissionModel, DocumentBase, DocumentCreate, D
 from app.models.video import VideoBase, VideoCreate, VideoUpdate, VideoResponse, VideoProgressUpdate, VideoProgressResponse
 from app.models.acompanhamento import AcompanhamentoBase, AcompanhamentoCreate, AcompanhamentoUpdate, AcompanhamentoResponse
 from app.models.audit import AuditLogResponse
+from app.models.user_journey import UserJourneyBase, UserJourneyCreate, UserJourneyResponse

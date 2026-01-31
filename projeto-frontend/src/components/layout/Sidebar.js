@@ -16,7 +16,8 @@ import {
   ChevronRight,
   MessageSquare,
   Building2,
-  Shield
+  Shield,
+  Route
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -31,6 +32,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
   const mainNavItems = [
     { icon: LayoutDashboard, label: t('dashboard'), href: '/dashboard' },
     { icon: Users, label: t('users'), href: '/users' },
+    { icon: Route, label: t('userJourney'), href: '/user-journey' },
     { icon: FileText, label: t('documents'), href: '/documents' },
     { icon: Video, label: t('videos'), href: '/videos' },
     { icon: MessageSquare, label: 'Acompanhamentos', href: '/acompanhamentos' },

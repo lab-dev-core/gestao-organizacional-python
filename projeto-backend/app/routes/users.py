@@ -15,6 +15,31 @@ from app.utils.security import (
 )
 from app.utils.audit import log_action
 
+
+async def record_journey_transition(
+    user_id: str,
+    from_stage_id: Optional[str],
+    to_stage_id: str,
+    tenant_id: Optional[str],
+    changed_by: dict,
+    notes: Optional[str] = None
+):
+    """Registra uma transição de jornada formativa"""
+    now = datetime.now(timezone.utc).isoformat()
+    journey_record = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "from_stage_id": from_stage_id,
+        "to_stage_id": to_stage_id,
+        "notes": notes or "Transição automática via atualização de usuário",
+        "changed_by_id": changed_by["id"],
+        "changed_by_name": changed_by["full_name"],
+        "transition_date": now,
+        "created_at": now
+    }
+    await db.user_journey.insert_one(dict(journey_record))
+
 router = APIRouter()
 
 
@@ -162,6 +187,18 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
 
     if update_dict.get("address"):
         update_dict["address"] = update_dict["address"] if isinstance(update_dict["address"], dict) else update_dict["address"].model_dump() if hasattr(update_dict["address"], 'model_dump') else dict(update_dict["address"])
+
+    # Verificar se houve mudança de etapa formativa e registrar na jornada
+    new_stage_id = update_dict.get("formative_stage_id")
+    old_stage_id = existing.get("formative_stage_id")
+    if new_stage_id and new_stage_id != old_stage_id:
+        await record_journey_transition(
+            user_id=user_id,
+            from_stage_id=old_stage_id,
+            to_stage_id=new_stage_id,
+            tenant_id=existing.get("tenant_id"),
+            changed_by=current_user
+        )
 
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
 

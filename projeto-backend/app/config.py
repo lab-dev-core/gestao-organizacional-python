@@ -3,7 +3,18 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).parent.parent
-load_dotenv(ROOT_DIR / '.env')
+
+# Carrega o arquivo de ambiente baseado na variável ENVIRONMENT
+# Prioridade: ENVIRONMENT env var -> .env.{environment} -> .env
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
+
+# Tenta carregar o arquivo específico do ambiente
+env_file = ROOT_DIR / f'.env.{ENVIRONMENT}'
+if env_file.exists():
+    load_dotenv(env_file)
+else:
+    # Fallback para .env genérico
+    load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')

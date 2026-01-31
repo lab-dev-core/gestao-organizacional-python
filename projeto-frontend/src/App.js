@@ -19,6 +19,7 @@ import AcompanhamentosPage from './pages/Acompanhamentos';
 import LocationsPage from './pages/Locations';
 import FunctionsPage from './pages/Functions';
 import FormativeStagesPage from './pages/FormativeStages';
+import UserJourneyPage from './pages/UserJourney';
 import AuditLogsPage from './pages/AuditLogs';
 import ProfilePage from './pages/Profile';
 import TenantsPage from './pages/Tenants';
@@ -46,6 +47,7 @@ function App() {
                 <Route path="/locations" element={<LocationsPage />} />
                 <Route path="/functions" element={<FunctionsPage />} />
                 <Route path="/formative-stages" element={<FormativeStagesPage />} />
+                <Route path="/user-journey" element={<UserJourneyPage />} />
                 <Route path="/audit-logs" element={<AuditLogsPage />} />
                 <Route path="/tenants" element={<TenantsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />

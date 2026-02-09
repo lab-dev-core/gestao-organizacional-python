@@ -39,7 +39,7 @@ ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 
 # CORS
-CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',')
+CORS_ORIGINS = [origin.strip() for origin in os.environ.get('CORS_ORIGINS', '*').split(',') if origin.strip()]
 
 # Email (para recuperação de senha)
 SMTP_HOST = os.environ.get('SMTP_HOST', '')

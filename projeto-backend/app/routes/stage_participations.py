@@ -16,26 +16,72 @@ router = APIRouter()
 
 async def enrich_participation(participation: dict) -> dict:
     """Enriquece a participação com dados do usuário, ciclo e etapa"""
-    # Buscar dados do usuário
     user = await db.users.find_one({"id": participation.get("user_id")})
     if user:
         participation["user_name"] = user.get("full_name")
         participation["user_email"] = user.get("email")
         participation["user_photo_url"] = user.get("photo_url")
 
-    # Buscar dados do ciclo
     cycle = await db.stage_cycles.find_one({"id": participation.get("cycle_id")})
     if cycle:
         participation["cycle_name"] = cycle.get("name")
         participation["stage_id"] = cycle.get("formative_stage_id")
 
-        # Buscar dados da etapa
         stage = await db.formative_stages.find_one({"id": cycle.get("formative_stage_id")})
         if stage:
             participation["stage_name"] = stage.get("name")
             participation["stage_order"] = stage.get("order")
 
     return participation
+
+
+async def enrich_participations_batch(participations: list) -> list:
+    """Enriquece múltiplas participações em batch para evitar N+1 queries"""
+    if not participations:
+        return []
+
+    # Collect unique IDs
+    user_ids = list({p.get("user_id") for p in participations if p.get("user_id")})
+    cycle_ids = list({p.get("cycle_id") for p in participations if p.get("cycle_id")})
+
+    # Batch fetch users
+    users_map = {}
+    if user_ids:
+        users = await db.users.find({"id": {"$in": user_ids}}).to_list(len(user_ids))
+        users_map = {u["id"]: u for u in users}
+
+    # Batch fetch cycles
+    cycles_map = {}
+    if cycle_ids:
+        cycles = await db.stage_cycles.find({"id": {"$in": cycle_ids}}).to_list(len(cycle_ids))
+        cycles_map = {c["id"]: c for c in cycles}
+
+    # Batch fetch stages referenced by cycles
+    stage_ids = list({c.get("formative_stage_id") for c in cycles_map.values() if c.get("formative_stage_id")})
+    stages_map = {}
+    if stage_ids:
+        stages = await db.formative_stages.find({"id": {"$in": stage_ids}}).to_list(len(stage_ids))
+        stages_map = {s["id"]: s for s in stages}
+
+    # Enrich all participations using maps
+    for p in participations:
+        user = users_map.get(p.get("user_id"))
+        if user:
+            p["user_name"] = user.get("full_name")
+            p["user_email"] = user.get("email")
+            p["user_photo_url"] = user.get("photo_url")
+
+        cycle = cycles_map.get(p.get("cycle_id"))
+        if cycle:
+            p["cycle_name"] = cycle.get("name")
+            p["stage_id"] = cycle.get("formative_stage_id")
+
+            stage = stages_map.get(cycle.get("formative_stage_id"))
+            if stage:
+                p["stage_name"] = stage.get("name")
+                p["stage_order"] = stage.get("order")
+
+    return participations
 
 
 @router.get("", response_model=List[StageParticipationResponse])
@@ -62,11 +108,7 @@ async def list_participations(
         "enrollment_date", -1
     ).skip(skip).limit(limit).to_list(limit)
 
-    enriched = []
-    for p in participations:
-        enriched.append(await enrich_participation(p))
-
-    return enriched
+    return await enrich_participations_batch(participations)
 
 
 @router.get("/cycle/{cycle_id}", response_model=List[StageParticipationResponse])
@@ -86,11 +128,7 @@ async def list_cycle_participants(
         "enrollment_date", 1
     ).to_list(500)
 
-    enriched = []
-    for p in participations:
-        enriched.append(await enrich_participation(p))
-
-    return enriched
+    return await enrich_participations_batch(participations)
 
 
 @router.get("/user/{user_id}/journey", response_model=UserJourneyFullResponse)
@@ -99,7 +137,6 @@ async def get_user_full_journey(
     current_user: dict = Depends(get_current_user)
 ):
     """Retorna a jornada completa de um usuário com todas as participações"""
-    # Buscar usuário
     user_query = get_tenant_filter(current_user)
     user_query["id"] = user_id
 
@@ -107,15 +144,12 @@ async def get_user_full_journey(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Buscar todas as participações do usuário
     part_query = get_tenant_filter(current_user)
     part_query["user_id"] = user_id
 
     participations = await db.stage_participations.find(part_query, {"_id": 0}).to_list(100)
 
-    enriched_participations = []
-    for p in participations:
-        enriched_participations.append(await enrich_participation(p))
+    enriched_participations = await enrich_participations_batch(participations)
 
     # Ordenar por ordem da etapa e data
     enriched_participations.sort(key=lambda x: (x.get("stage_order", 0), x.get("enrollment_date", "")))
@@ -132,7 +166,6 @@ async def get_user_full_journey(
             current_stage = p.get("stage_name")
             current_cycle = p.get("cycle_name")
 
-    # Contar total de etapas
     tenant_id = current_user.get("tenant_id")
     stage_query = {"tenant_id": tenant_id} if tenant_id else {}
     total_stages = await db.formative_stages.count_documents(stage_query)
@@ -175,7 +208,6 @@ async def create_participation(
     """Inscreve um usuário em um ciclo"""
     tenant_id = current_user.get("tenant_id")
 
-    # Verificar se o usuário existe
     user_query = {"id": data.user_id}
     if tenant_id:
         user_query["tenant_id"] = tenant_id
@@ -184,7 +216,6 @@ async def create_participation(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Verificar se o ciclo existe
     cycle_query = {"id": data.cycle_id}
     if tenant_id:
         cycle_query["tenant_id"] = tenant_id
@@ -193,7 +224,6 @@ async def create_participation(
     if not cycle:
         raise HTTPException(status_code=404, detail="Cycle not found")
 
-    # Verificar se já está inscrito neste ciclo
     existing = await db.stage_participations.find_one({
         "user_id": data.user_id,
         "cycle_id": data.cycle_id
@@ -201,7 +231,6 @@ async def create_participation(
     if existing:
         raise HTTPException(status_code=400, detail="User already enrolled in this cycle")
 
-    # Verificar limite de vagas
     if cycle.get("max_participants"):
         current_count = await db.stage_participations.count_documents({"cycle_id": data.cycle_id})
         if current_count >= cycle["max_participants"]:
@@ -260,7 +289,6 @@ async def update_participation(
     update_dict = {k: v for k, v in data.model_dump().items() if v is not None}
     update_dict["updated_at"] = now
 
-    # Se está aprovando ou reprovando, registrar quem fez
     if data.status in [ParticipationStatus.APPROVED, ParticipationStatus.REPROVED]:
         update_dict["approved_by_id"] = current_user["id"]
         update_dict["approved_by_name"] = current_user["full_name"]
@@ -398,14 +426,12 @@ async def get_participation_stats(
     tenant_id = current_user.get("tenant_id")
     base_query = {"tenant_id": tenant_id} if tenant_id else {}
 
-    # Total de participações por status
     stats_by_status = {}
     for status in ParticipationStatus:
         query = {**base_query, "status": status}
         count = await db.stage_participations.count_documents(query)
         stats_by_status[status.value] = count
 
-    # Total de usuários únicos em jornada
     pipeline = [
         {"$match": base_query},
         {"$group": {"_id": "$user_id"}},
@@ -414,7 +440,6 @@ async def get_participation_stats(
     result = await db.stage_participations.aggregate(pipeline).to_list(1)
     unique_users = result[0]["total"] if result else 0
 
-    # Ciclos ativos
     active_cycles = await db.stage_cycles.count_documents({
         **base_query,
         "status": {"$in": ["planned", "in_progress"]}

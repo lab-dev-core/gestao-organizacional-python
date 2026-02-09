@@ -24,11 +24,47 @@ async def enrich_journey_record(record: dict) -> dict:
     record["from_stage_name"] = await get_stage_name(record.get("from_stage_id"))
     record["to_stage_name"] = await get_stage_name(record.get("to_stage_id"))
 
-    # Buscar nome do usuário
     user = await db.users.find_one({"id": record.get("user_id")})
     record["user_name"] = user.get("full_name") if user else None
 
     return record
+
+
+async def enrich_journey_records_batch(records: list) -> list:
+    """Enriquece múltiplos registros de jornada em batch para evitar N+1 queries"""
+    if not records:
+        return []
+
+    # Collect unique IDs
+    stage_ids = set()
+    user_ids = set()
+    for r in records:
+        if r.get("from_stage_id"):
+            stage_ids.add(r["from_stage_id"])
+        if r.get("to_stage_id"):
+            stage_ids.add(r["to_stage_id"])
+        if r.get("user_id"):
+            user_ids.add(r["user_id"])
+
+    # Batch fetch stages
+    stages_map = {}
+    if stage_ids:
+        stages = await db.formative_stages.find({"id": {"$in": list(stage_ids)}}).to_list(len(stage_ids))
+        stages_map = {s["id"]: s.get("name") for s in stages}
+
+    # Batch fetch users
+    users_map = {}
+    if user_ids:
+        users = await db.users.find({"id": {"$in": list(user_ids)}}).to_list(len(user_ids))
+        users_map = {u["id"]: u.get("full_name") for u in users}
+
+    # Enrich all records
+    for r in records:
+        r["from_stage_name"] = stages_map.get(r.get("from_stage_id"))
+        r["to_stage_name"] = stages_map.get(r.get("to_stage_id"))
+        r["user_name"] = users_map.get(r.get("user_id"))
+
+    return records
 
 
 @router.get("/user/{user_id}", response_model=List[UserJourneyResponse])
@@ -43,7 +79,6 @@ async def get_user_journey(
     query = get_tenant_filter(current_user)
     query["user_id"] = user_id
 
-    # Verificar se o usuário existe
     user_query = get_tenant_filter(current_user)
     user_query["id"] = user_id
     user = await db.users.find_one(user_query)
@@ -52,13 +87,7 @@ async def get_user_journey(
 
     records = await db.user_journey.find(query, {"_id": 0}).sort("transition_date", 1).to_list(1000)
 
-    # Enriquecer cada registro
-    enriched_records = []
-    for record in records:
-        enriched = await enrich_journey_record(record)
-        enriched_records.append(enriched)
-
-    return enriched_records
+    return await enrich_journey_records_batch(records)
 
 
 @router.get("", response_model=List[UserJourneyResponse])
@@ -83,12 +112,7 @@ async def list_journey_records(
     skip = (page - 1) * limit
     records = await db.user_journey.find(query, {"_id": 0}).sort("transition_date", -1).skip(skip).limit(limit).to_list(limit)
 
-    enriched_records = []
-    for record in records:
-        enriched = await enrich_journey_record(record)
-        enriched_records.append(enriched)
-
-    return enriched_records
+    return await enrich_journey_records_batch(records)
 
 
 @router.post("/user/{user_id}", response_model=UserJourneyResponse)
@@ -103,7 +127,6 @@ async def create_journey_record(
     """
     tenant_id = current_user.get("tenant_id")
 
-    # Verificar se o usuário existe
     user_query = {"id": user_id}
     if tenant_id:
         user_query["tenant_id"] = tenant_id
@@ -112,7 +135,6 @@ async def create_journey_record(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Verificar se a etapa de destino existe
     stage_query = {"id": journey_data.to_stage_id}
     if tenant_id:
         stage_query["tenant_id"] = tenant_id
@@ -123,7 +145,6 @@ async def create_journey_record(
 
     now = datetime.now(timezone.utc).isoformat()
 
-    # Criar registro de jornada
     journey_record = {
         "id": str(uuid.uuid4()),
         "tenant_id": tenant_id,
@@ -139,7 +160,6 @@ async def create_journey_record(
 
     await db.user_journey.insert_one(dict(journey_record))
 
-    # Atualizar o formative_stage_id do usuário
     await db.users.update_one(
         {"id": user_id},
         {"$set": {"formative_stage_id": journey_data.to_stage_id, "updated_at": now}}
@@ -159,7 +179,6 @@ async def create_journey_record(
         }
     )
 
-    # Enriquecer e retornar
     enriched = await enrich_journey_record(journey_record)
     return enriched
 
@@ -170,25 +189,31 @@ async def get_journey_stats_by_stage(
 ):
     """
     Retorna estatísticas de quantos usuários estão em cada etapa formativa.
+    Uses aggregation pipeline to avoid N+1 queries.
     """
     tenant_id = current_user.get("tenant_id")
 
-    # Buscar todas as etapas
     stage_query = {"tenant_id": tenant_id} if tenant_id else {}
     stages = await db.formative_stages.find(stage_query, {"_id": 0}).sort("order", 1).to_list(100)
 
+    # Batch count users per stage using aggregation
+    stage_ids = [s["id"] for s in stages]
+    user_base_query = {"tenant_id": tenant_id} if tenant_id else {}
+
+    pipeline = [
+        {"$match": {**user_base_query, "formative_stage_id": {"$in": stage_ids}}},
+        {"$group": {"_id": "$formative_stage_id", "count": {"$sum": 1}}}
+    ]
+    counts_result = await db.users.aggregate(pipeline).to_list(len(stage_ids))
+    counts_map = {r["_id"]: r["count"] for r in counts_result}
+
     stats = []
     for stage in stages:
-        user_query = {"formative_stage_id": stage["id"]}
-        if tenant_id:
-            user_query["tenant_id"] = tenant_id
-
-        count = await db.users.count_documents(user_query)
         stats.append({
             "stage_id": stage["id"],
             "stage_name": stage["name"],
             "stage_order": stage.get("order", 0),
-            "user_count": count,
+            "user_count": counts_map.get(stage["id"], 0),
             "estimated_duration": stage.get("estimated_duration")
         })
 

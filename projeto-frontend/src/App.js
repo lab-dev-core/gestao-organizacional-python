@@ -4,6 +4,7 @@ import { Toaster } from './components/ui/sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -29,42 +30,44 @@ import './App.css';
 
 function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
 
-              {/* Protected Routes */}
-              <Route element={<DashboardLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/users" element={<UsersPage />} />
-                <Route path="/documents" element={<DocumentsPage />} />
-                <Route path="/videos" element={<VideosPage />} />
-                <Route path="/acompanhamentos" element={<AcompanhamentosPage />} />
-                <Route path="/locations" element={<LocationsPage />} />
-                <Route path="/functions" element={<FunctionsPage />} />
-                <Route path="/formative-stages" element={<FormativeStagesPage />} />
-                <Route path="/stage-cycles" element={<StageCyclesPage />} />
-                <Route path="/user-journey" element={<UserJourneyPage />} />
-                <Route path="/audit-logs" element={<AuditLogsPage />} />
-                <Route path="/tenants" element={<TenantsPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/settings" element={<ProfilePage />} />
-              </Route>
+                {/* Protected Routes */}
+                <Route element={<DashboardLayout />}>
+                  <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+                  <Route path="/users" element={<ErrorBoundary><UsersPage /></ErrorBoundary>} />
+                  <Route path="/documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
+                  <Route path="/videos" element={<ErrorBoundary><VideosPage /></ErrorBoundary>} />
+                  <Route path="/acompanhamentos" element={<ErrorBoundary><AcompanhamentosPage /></ErrorBoundary>} />
+                  <Route path="/locations" element={<ErrorBoundary><LocationsPage /></ErrorBoundary>} />
+                  <Route path="/functions" element={<ErrorBoundary><FunctionsPage /></ErrorBoundary>} />
+                  <Route path="/formative-stages" element={<ErrorBoundary><FormativeStagesPage /></ErrorBoundary>} />
+                  <Route path="/stage-cycles" element={<ErrorBoundary><StageCyclesPage /></ErrorBoundary>} />
+                  <Route path="/user-journey" element={<ErrorBoundary><UserJourneyPage /></ErrorBoundary>} />
+                  <Route path="/audit-logs" element={<ErrorBoundary><AuditLogsPage /></ErrorBoundary>} />
+                  <Route path="/tenants" element={<ErrorBoundary><TenantsPage /></ErrorBoundary>} />
+                  <Route path="/profile" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
+                  <Route path="/settings" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
+                </Route>
 
-              {/* Redirects */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </BrowserRouter>
-          <Toaster position="top-right" richColors closeButton />
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+                {/* Redirects */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </BrowserRouter>
+            <Toaster position="top-right" richColors closeButton />
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

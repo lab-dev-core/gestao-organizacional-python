@@ -1,0 +1,32 @@
+[Unit]
+Description=Gestao Organizacional Backend API
+Documentation=https://github.com/lab-dev-core/gestao-organizacional-python
+After=network.target mongodb.service mongod.service
+Wants=mongodb.service
+
+[Service]
+Type=exec
+User=user
+Group=user
+WorkingDirectory=/home/user/gestao-organizacional-python/projeto-backend
+EnvironmentFile=/home/user/gestao-organizacional-python/projeto-backend/.env.production
+ExecStart=/home/user/gestao-organizacional-python/projeto-backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gestao-backend
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/user/gestao-organizacional-python/projeto-backend/uploads
+
+# Resource limits
+LimitNOFILE=65535
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

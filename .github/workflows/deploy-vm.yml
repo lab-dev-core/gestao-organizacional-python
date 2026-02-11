@@ -1,0 +1,53 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to VM via SSH
+
+    steps:
+      - name: Deploy to Azure VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+
+            # Navegar até o diretório do projeto
+            cd ${{ secrets.VM_PROJECT_PATH || '~/gestao-organizacional-python' }}
+
+            echo "==> Pulling latest changes..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Installing backend dependencies..."
+            cd projeto-backend
+            if [ -d "venv" ]; then
+              source venv/bin/activate
+            else
+              python3 -m venv venv
+              source venv/bin/activate
+            fi
+            pip install -r requirements.txt --quiet
+
+            echo "==> Installing frontend dependencies..."
+            cd ../projeto-frontend
+            yarn install --frozen-lockfile
+            yarn build
+
+            echo "==> Restarting services..."
+            cd ..
+            sudo systemctl restart gestao-backend || echo "Warning: backend service restart failed"
+            sudo systemctl restart gestao-frontend || echo "Warning: frontend service restart failed"
+
+            echo "==> Deploy completed successfully!"

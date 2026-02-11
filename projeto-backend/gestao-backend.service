@@ -6,11 +6,11 @@ Wants=mongodb.service
 
 [Service]
 Type=exec
-User=user
-Group=user
-WorkingDirectory=/home/user/gestao-organizacional-python/projeto-backend
-EnvironmentFile=/home/user/gestao-organizacional-python/projeto-backend/.env.production
-ExecStart=/home/user/gestao-organizacional-python/projeto-backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+User=root
+Group=root
+WorkingDirectory=/home/back/htdocs/back.dev-core.online/gestao-organizacional-python/projeto-backend
+EnvironmentFile=/home/back/htdocs/back.dev-core.online/gestao-organizacional-python/projeto-backend//.env.production
+ExecStart=/home/back/htdocs/back.dev-core.online/gestao-organizacional-python/projeto-backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
@@ -22,7 +22,7 @@ SyslogIdentifier=gestao-backend
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/home/user/gestao-organizacional-python/projeto-backend/uploads
+ReadWritePaths=/home/back/htdocs/back.dev-core.online/gestao-organizacional-python/projeto-backend/uploads
 
 # Resource limits
 LimitNOFILE=65535

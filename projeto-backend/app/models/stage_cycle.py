@@ -3,6 +3,8 @@ from typing import Optional
 from enum import Enum
 
 
+
+
 class CycleStatus(str, Enum):
     PLANNED = "planned"        # Planejado, ainda não iniciou
     IN_PROGRESS = "in_progress"  # Em andamento
@@ -40,7 +42,7 @@ class StageCycleUpdate(BaseModel):
 class StageCycleResponse(StageCycleBase):
     model_config = ConfigDict(extra="ignore")
     id: str
-    tenant_id: str
+    tenant_id: Optional[str] = None
     stage_name: Optional[str] = None  # Nome da etapa (populated)
     participants_count: Optional[int] = 0  # Quantidade de participantes
     created_at: str

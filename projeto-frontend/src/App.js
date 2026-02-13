@@ -25,6 +25,7 @@ import UserJourneyPage from './pages/UserJourney';
 import AuditLogsPage from './pages/AuditLogs';
 import ProfilePage from './pages/Profile';
 import TenantsPage from './pages/Tenants';
+import CertificatesPage from './pages/Certificates';
 
 import './App.css';
 
@@ -54,6 +55,7 @@ function App() {
                   <Route path="/user-journey" element={<ErrorBoundary><UserJourneyPage /></ErrorBoundary>} />
                   <Route path="/audit-logs" element={<ErrorBoundary><AuditLogsPage /></ErrorBoundary>} />
                   <Route path="/tenants" element={<ErrorBoundary><TenantsPage /></ErrorBoundary>} />
+                  <Route path="/certificates" element={<ErrorBoundary><CertificatesPage /></ErrorBoundary>} />
                   <Route path="/profile" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
                   <Route path="/settings" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
                 </Route>

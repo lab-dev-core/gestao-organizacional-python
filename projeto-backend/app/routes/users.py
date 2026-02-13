@@ -11,7 +11,7 @@ from app.models import UserCreate, UserUpdate, UserResponse
 from app.models.enums import UserRole, UserStatus
 from app.utils.security import (
     get_current_user, require_admin, hash_password,
-    get_tenant_filter, check_tenant_limits
+    get_tenant_filter, check_tenant_limits, get_user_roles, normalize_user_roles
 )
 from app.utils.audit import log_action
 
@@ -65,7 +65,18 @@ async def list_users(
             {"cpf": {"$regex": search, "$options": "i"}}
         ]
     if role:
-        query["role"] = role
+        # Support both old 'role' field and new 'roles' array
+        query["$or"] = query.get("$or", [])
+        role_filter = {"$or": [{"roles": role}, {"role": role}]}
+        if query.get("$or"):
+            # Merge with existing $or (search)
+            query = {"$and": [
+                {k: v for k, v in query.items() if k != "$or"},
+                {"$or": query["$or"]},
+                role_filter
+            ]}
+        else:
+            query.update(role_filter)
     if status:
         query["status"] = status
     if location_id:
@@ -77,6 +88,9 @@ async def list_users(
 
     skip = (page - 1) * limit
     users = await db.users.find(query, {"_id": 0, "password": 0}).skip(skip).limit(limit).to_list(limit)
+    # Normalize roles for backward compatibility
+    for u in users:
+        normalize_user_roles(u)
     return users
 
 
@@ -84,10 +98,15 @@ async def list_users(
 async def list_formadores(current_user: dict = Depends(get_current_user)):
     """List all users with formador role within the tenant"""
     query = get_tenant_filter(current_user)
-    query["role"] = UserRole.FORMADOR
+    query["$or"] = [
+        {"roles": UserRole.FORMADOR},
+        {"role": UserRole.FORMADOR}
+    ]
     query["status"] = UserStatus.ACTIVE
 
     formadores = await db.users.find(query, {"_id": 0, "password": 0}).to_list(1000)
+    for u in formadores:
+        normalize_user_roles(u)
     return formadores
 
 
@@ -99,6 +118,7 @@ async def get_user(user_id: str, current_user: dict = Depends(get_current_user))
     user = await db.users.find_one(query, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    normalize_user_roles(user)
     return user
 
 
@@ -130,7 +150,7 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(requir
     now = datetime.now(timezone.utc).isoformat()
     user_dict = user_data.model_dump()
     user_dict["id"] = str(uuid.uuid4())
-    user_dict["tenant_id"] = tenant_id  # Associate with current user's tenant
+    user_dict["tenant_id"] = tenant_id
     user_dict["password"] = hash_password(user_data.password)
     user_dict["is_tenant_owner"] = False
     user_dict["created_at"] = now
@@ -138,6 +158,9 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(requir
 
     if user_dict.get("address"):
         user_dict["address"] = user_dict["address"] if isinstance(user_dict["address"], dict) else user_dict["address"].model_dump() if hasattr(user_dict["address"], 'model_dump') else dict(user_dict["address"])
+
+    if user_dict.get("family_contact"):
+        user_dict["family_contact"] = user_dict["family_contact"] if isinstance(user_dict["family_contact"], dict) else user_dict["family_contact"].model_dump() if hasattr(user_dict["family_contact"], 'model_dump') else dict(user_dict["family_contact"])
 
     mongo_doc = dict(user_dict)
     await db.users.insert_one(mongo_doc)
@@ -150,17 +173,20 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(requir
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = Depends(get_current_user)):
+    current_roles = get_user_roles(current_user)
+    is_admin_user = any(r in current_roles for r in [UserRole.ADMIN, UserRole.SUPERADMIN])
+
     # Superadmin can update anyone, admin can update users in their tenant, users can update themselves
-    if current_user["role"] not in [UserRole.ADMIN, UserRole.SUPERADMIN] and current_user["id"] != user_id:
+    if not is_admin_user and current_user["id"] != user_id:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # Non-admins cannot change role
-    if current_user["role"] not in [UserRole.ADMIN, UserRole.SUPERADMIN] and user_data.role:
-        raise HTTPException(status_code=403, detail="Cannot change role")
+    # Non-admins cannot change roles
+    if not is_admin_user and user_data.roles:
+        raise HTTPException(status_code=403, detail="Cannot change roles")
 
     # Build query with tenant filter
     query = {"id": user_id}
-    if current_user["role"] != UserRole.SUPERADMIN and current_user.get("tenant_id"):
+    if UserRole.SUPERADMIN not in current_roles and current_user.get("tenant_id"):
         query["tenant_id"] = current_user["tenant_id"]
 
     existing = await db.users.find_one(query)
@@ -168,8 +194,8 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
         raise HTTPException(status_code=404, detail="User not found")
 
     # Prevent tenant owners from being demoted by non-superadmins
-    if existing.get("is_tenant_owner") and current_user["role"] != UserRole.SUPERADMIN:
-        if user_data.role and user_data.role != UserRole.ADMIN:
+    if existing.get("is_tenant_owner") and UserRole.SUPERADMIN not in current_roles:
+        if user_data.roles and UserRole.ADMIN not in user_data.roles:
             raise HTTPException(status_code=403, detail="Cannot change role of tenant owner")
 
     update_dict = {k: v for k, v in user_data.model_dump().items() if v is not None}
@@ -187,6 +213,9 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
 
     if update_dict.get("address"):
         update_dict["address"] = update_dict["address"] if isinstance(update_dict["address"], dict) else update_dict["address"].model_dump() if hasattr(update_dict["address"], 'model_dump') else dict(update_dict["address"])
+
+    if update_dict.get("family_contact"):
+        update_dict["family_contact"] = update_dict["family_contact"] if isinstance(update_dict["family_contact"], dict) else update_dict["family_contact"].model_dump() if hasattr(update_dict["family_contact"], 'model_dump') else dict(update_dict["family_contact"])
 
     # Verificar se houve mudança de etapa formativa e registrar na jornada
     new_stage_id = update_dict.get("formative_stage_id")
@@ -207,14 +236,17 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
     await log_action(current_user["id"], current_user["full_name"], "update", "user", user_id)
 
     updated_user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    normalize_user_roles(updated_user)
     return updated_user
 
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(require_admin)):
+    current_roles = get_user_roles(current_user)
+
     # Build query with tenant filter
     query = {"id": user_id}
-    if current_user["role"] != UserRole.SUPERADMIN and current_user.get("tenant_id"):
+    if UserRole.SUPERADMIN not in current_roles and current_user.get("tenant_id"):
         query["tenant_id"] = current_user["tenant_id"]
 
     existing = await db.users.find_one(query)
@@ -225,7 +257,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_admin))
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
 
     # Prevent tenant owner deletion by non-superadmins
-    if existing.get("is_tenant_owner") and current_user["role"] != UserRole.SUPERADMIN:
+    if existing.get("is_tenant_owner") and UserRole.SUPERADMIN not in current_roles:
         raise HTTPException(status_code=403, detail="Cannot delete tenant owner")
 
     await db.users.delete_one({"id": user_id})
@@ -240,12 +272,15 @@ async def upload_user_photo(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    if current_user["role"] not in [UserRole.ADMIN, UserRole.SUPERADMIN] and current_user["id"] != user_id:
+    current_roles = get_user_roles(current_user)
+    is_admin_user = any(r in current_roles for r in [UserRole.ADMIN, UserRole.SUPERADMIN])
+
+    if not is_admin_user and current_user["id"] != user_id:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Verify user exists and belongs to same tenant
     query = {"id": user_id}
-    if current_user["role"] != UserRole.SUPERADMIN and current_user.get("tenant_id"):
+    if UserRole.SUPERADMIN not in current_roles and current_user.get("tenant_id"):
         query["tenant_id"] = current_user["tenant_id"]
 
     user = await db.users.find_one(query)

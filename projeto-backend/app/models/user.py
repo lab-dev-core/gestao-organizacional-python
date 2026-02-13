@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, List
-from app.models.enums import UserRole, UserStatus
+from app.models.enums import UserRole, UserStatus, EducationLevel
 
 
 class AddressModel(BaseModel):
@@ -11,6 +11,12 @@ class AddressModel(BaseModel):
     neighborhood: str = ""
     city: str = ""
     state: str = ""
+
+
+class FamilyContactModel(BaseModel):
+    name: str = ""
+    phone: str = ""
+    relationship: str = ""
 
 
 class UserBase(BaseModel):
@@ -24,10 +30,12 @@ class UserBase(BaseModel):
     function_id: Optional[str] = None
     formative_stage_id: Optional[str] = None
     formador_id: Optional[str] = None
-    role: UserRole = UserRole.USER
+    roles: List[UserRole] = [UserRole.USER]
     status: UserStatus = UserStatus.ACTIVE
     photo_url: Optional[str] = None
-    is_tenant_owner: bool = False  # Owner of the tenant/organization
+    is_tenant_owner: bool = False
+    family_contact: Optional[FamilyContactModel] = None
+    education_level: Optional[EducationLevel] = None
 
 
 class UserCreate(UserBase):
@@ -45,16 +53,18 @@ class UserUpdate(BaseModel):
     function_id: Optional[str] = None
     formative_stage_id: Optional[str] = None
     formador_id: Optional[str] = None
-    role: Optional[UserRole] = None
+    roles: Optional[List[UserRole]] = None
     status: Optional[UserStatus] = None
     photo_url: Optional[str] = None
     password: Optional[str] = None
+    family_contact: Optional[FamilyContactModel] = None
+    education_level: Optional[EducationLevel] = None
 
 
 class UserResponse(UserBase):
     model_config = ConfigDict(extra="ignore")
     id: str
-    tenant_id: Optional[str] = None  # None for superadmins
+    tenant_id: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -62,7 +72,7 @@ class UserResponse(UserBase):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    tenant_slug: Optional[str] = None  # Optional: login to specific tenant
+    tenant_slug: Optional[str] = None
 
 
 class TokenResponse(BaseModel):

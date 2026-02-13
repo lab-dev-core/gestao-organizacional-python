@@ -261,6 +261,44 @@ const pt = {
   confirmDelete: 'Confirmar Exclusão',
   confirmDeleteMessage: 'Tem certeza que deseja excluir este item?',
   actionCannotBeUndone: 'Esta ação não pode ser desfeita.',
+
+  // Family Contact
+  familyContact: 'Contato da Família',
+  familyContactName: 'Nome do Contato',
+  familyContactPhone: 'Telefone do Contato',
+  familyContactRelationship: 'Parentesco',
+
+  // Education Level
+  educationLevel: 'Grau de Escolaridade',
+  fundamental_incompleto: 'Fundamental Incompleto',
+  fundamental_completo: 'Fundamental Completo',
+  medio_incompleto: 'Médio Incompleto',
+  medio_completo: 'Médio Completo',
+  superior_incompleto: 'Superior Incompleto',
+  superior_completo: 'Superior Completo',
+  pos_graduacao: 'Pós-Graduação',
+  mestrado: 'Mestrado',
+  doutorado: 'Doutorado',
+
+  // Roles (multiple)
+  roles: 'Funções',
+  selectRoles: 'Selecionar Funções',
+
+  // Certificates
+  certificates: 'Certificados',
+  certificatesDescription: 'Gerencie certificados e cursos concluídos',
+  newCertificate: 'Novo Certificado',
+  editCertificate: 'Editar Certificado',
+  certificateTitle: 'Título do Certificado',
+  issuingInstitution: 'Instituição Emissora',
+  issueDate: 'Data de Emissão',
+  certificateCreated: 'Certificado criado com sucesso',
+  certificateUpdated: 'Certificado atualizado com sucesso',
+  certificateDeleted: 'Certificado excluído com sucesso',
+  noCertificatesFound: 'Nenhum certificado encontrado',
+  uploadCertificate: 'Upload de Certificado',
+  viewFile: 'Ver Arquivo',
+  filterByUser: 'Filtrar por Usuário',
 };
 
 export default pt;

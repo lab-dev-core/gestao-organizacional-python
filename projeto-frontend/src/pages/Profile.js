@@ -10,21 +10,31 @@ import { Label } from '../components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Switch } from '../components/ui/switch';
 import { Separator } from '../components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { User, Camera, Loader2, Sun, Moon, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
+const EDUCATION_LEVELS = [
+  'fundamental_incompleto', 'fundamental_completo',
+  'medio_incompleto', 'medio_completo',
+  'superior_incompleto', 'superior_completo',
+  'pos_graduacao', 'mestrado', 'doutorado'
+];
+
 const ProfilePage = () => {
   const { user, updateUser, getAuthHeaders } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const { language, toggleLanguage, t, isPortuguese } = useLanguage();
-  
+
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: user?.full_name || '',
     phone: user?.phone || '',
+    education_level: user?.education_level || '',
+    family_contact: user?.family_contact || { name: '', phone: '', relationship: '' },
     address: user?.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' }
   });
 
@@ -66,7 +76,7 @@ const ProfilePage = () => {
     try {
       const headers = getAuthHeaders();
       const response = await axios.post(`${API_URL}/users/${user.id}/photo`, formData, {
-        headers: { ...headers, 'Content-Type': 'multipart/form-data' }
+        headers
       });
       updateUser({ photo_url: response.data.photo_url });
       toast.success('Foto atualizada com sucesso');
@@ -119,6 +129,13 @@ const ProfilePage = () => {
             <div>
               <h2 className="text-xl font-semibold">{user?.full_name}</h2>
               <p className="text-muted-foreground">{user?.email}</p>
+              {user?.roles && (
+                <div className="flex gap-1 mt-1">
+                  {(user.roles || []).map(r => (
+                    <span key={r} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full capitalize">{r}</span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -148,6 +165,50 @@ const ProfilePage = () => {
                   onChange={(e) => handleChange('phone', e.target.value)}
                   placeholder="(11) 99999-9999"
                   data-testid="profile-phone-input"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>{t('educationLevel')}</Label>
+                <Select value={formData.education_level || 'none'} onValueChange={(v) => handleChange('education_level', v === 'none' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecione...</SelectItem>
+                    {EDUCATION_LEVELS.map(level => (
+                      <SelectItem key={level} value={level}>{t(level)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <h3 className="font-semibold">{t('familyContact')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>{t('familyContactName')}</Label>
+                <Input
+                  value={formData.family_contact?.name || ''}
+                  onChange={(e) => handleChange('family_contact.name', e.target.value)}
+                  placeholder="Nome do familiar"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('familyContactPhone')}</Label>
+                <Input
+                  value={formData.family_contact?.phone || ''}
+                  onChange={(e) => handleChange('family_contact.phone', e.target.value)}
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('familyContactRelationship')}</Label>
+                <Input
+                  value={formData.family_contact?.relationship || ''}
+                  onChange={(e) => handleChange('family_contact.relationship', e.target.value)}
+                  placeholder="Ex: Mãe, Pai, Cônjuge"
                 />
               </div>
             </div>

@@ -142,6 +142,35 @@ async def startup_event():
     await db.certificates.create_index("tenant_id")
     await db.certificates.create_index("user_id")
 
+    # Psychological assessments indexes
+    await db.psychological_assessments.create_index("tenant_id")
+    await db.psychological_assessments.create_index("user_id")
+    await db.psychological_assessments.create_index("assessor_id")
+    await db.psychological_assessments.create_index("formative_stage_id")
+
+    # Stage indicators indexes
+    await db.stage_indicators.create_index("tenant_id")
+    await db.stage_indicators.create_index("formative_stage_id")
+
+    # Content subcategories indexes
+    await db.content_subcategories.create_index("tenant_id")
+    await db.content_subcategories.create_index("formative_stage_id")
+
+    # Video interactions indexes
+    await db.video_comments.create_index("video_id")
+    await db.video_comments.create_index("user_id")
+    await db.video_evaluations.create_index("video_id")
+    await db.video_evaluations.create_index([("video_id", 1), ("user_id", 1)])
+    await db.video_attachments.create_index("video_id")
+    await db.video_progress.create_index([("video_id", 1), ("user_id", 1)])
+
+    # Audit logs indexes
+    await db.audit_logs.create_index("tenant_id")
+    await db.audit_logs.create_index("user_id")
+    await db.audit_logs.create_index("action")
+    await db.audit_logs.create_index("resource_type")
+    await db.audit_logs.create_index("created_at")
+
     logger.info("Database indexes created")
 
 

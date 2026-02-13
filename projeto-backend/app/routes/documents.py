@@ -26,6 +26,8 @@ async def list_documents(
     limit: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
     category: Optional[str] = None,
+    subcategory_id: Optional[str] = None,
+    formative_stage_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
@@ -36,6 +38,10 @@ async def list_documents(
         ]
     if category:
         query["category"] = category
+    if subcategory_id:
+        query["subcategory_id"] = subcategory_id
+    if formative_stage_id:
+        query["formative_stage_id"] = formative_stage_id
 
     skip = (page - 1) * limit
     documents = await db.documents.find(query, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
@@ -43,6 +49,11 @@ async def list_documents(
     accessible_docs = []
     for doc in documents:
         if doc.get("is_public") or check_permission(current_user, doc.get("permissions")):
+            # Enriquecer com nome da subcategoria
+            if doc.get("subcategory_id"):
+                sub = await db.content_subcategories.find_one({"id": doc["subcategory_id"]})
+                if sub:
+                    doc["subcategory_name"] = sub.get("name")
             accessible_docs.append(doc)
 
     return accessible_docs
@@ -67,6 +78,13 @@ async def get_document(doc_id: str, current_user: dict = Depends(get_current_use
     await log_action(current_user["id"], current_user["full_name"], "view", "document", doc_id, {"title": doc["title"]})
 
     doc["views"] = doc.get("views", 0) + 1
+
+    # Enriquecer com nome da subcategoria
+    if doc.get("subcategory_id"):
+        sub = await db.content_subcategories.find_one({"id": doc["subcategory_id"]})
+        if sub:
+            doc["subcategory_name"] = sub.get("name")
+
     return doc
 
 
@@ -78,6 +96,7 @@ async def create_document(
     is_public: bool = Form(False),
     permissions: str = Form(None),
     formative_stage_id: str = Form(None),
+    subcategory_id: str = Form(None),
     file: UploadFile = File(...),
     current_user: dict = Depends(require_admin_or_formador)
 ):
@@ -120,6 +139,7 @@ async def create_document(
         "permissions": perm_dict,
         "version": 1,
         "formative_stage_id": formative_stage_id if formative_stage_id else None,
+        "subcategory_id": subcategory_id if subcategory_id else None,
         "file_url": f"/api/uploads/documents/{file_id}{ext}",
         "file_name": file.filename,
         "file_size": len(content),

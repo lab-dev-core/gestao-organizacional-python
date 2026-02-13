@@ -4,13 +4,17 @@ from pathlib import Path
 from typing import List, Optional
 import uuid
 import json
+import logging
 
 from app.database import db
-from app.config import UPLOAD_DIR, ALLOWED_VIDEO_EXTENSIONS, MAX_FILE_SIZE
+from app.config import UPLOAD_DIR, ALLOWED_VIDEO_EXTENSIONS, MAX_FILE_SIZE, ONEDRIVE_ENABLED
 from app.models import VideoUpdate, VideoResponse, VideoProgressUpdate, VideoProgressResponse
 from app.utils.security import get_current_user, require_admin_or_formador
 from app.utils.permissions import check_permission
 from app.utils.audit import log_action
+from app.services import onedrive
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -101,6 +105,8 @@ async def create_video(
         "file_url": None,
         "file_name": None,
         "file_size": None,
+        "file_type": None,
+        "storage": None,
         "thumbnail_url": None,
         "duration": None,
         "uploaded_by": current_user["id"],
@@ -114,18 +120,27 @@ async def create_video(
         if ext not in ALLOWED_VIDEO_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Invalid file type. Allowed: MP4, AVI, MOV, MKV, WEBM")
 
-        file_path = UPLOAD_DIR / "videos" / f"{video_id}{ext}"
-
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail="File too large. Max 500MB")
 
-        with open(file_path, "wb") as buffer:
-            buffer.write(content)
+        if ONEDRIVE_ENABLED:
+            try:
+                await onedrive.upload_file("videos", video_id, content, ext)
+                video_dict["storage"] = "onedrive"
+            except Exception as e:
+                logger.error(f"OneDrive video upload failed: {e}")
+                raise HTTPException(status_code=500, detail="Failed to upload video to cloud storage")
+        else:
+            file_path = UPLOAD_DIR / "videos" / f"{video_id}{ext}"
+            with open(file_path, "wb") as buffer:
+                buffer.write(content)
+            video_dict["storage"] = "local"
 
         video_dict["file_url"] = f"/api/uploads/videos/{video_id}{ext}"
         video_dict["file_name"] = file.filename
         video_dict["file_size"] = len(content)
+        video_dict["file_type"] = ext[1:]
 
     await db.videos.insert_one(video_dict)
     await log_action(current_user["id"], current_user["full_name"], "upload", "video", video_id, {"title": title})
@@ -160,9 +175,16 @@ async def delete_video(video_id: str, current_user: dict = Depends(require_admin
 
     if existing.get("file_url"):
         file_name = existing["file_url"].split("/")[-1]
-        file_path = UPLOAD_DIR / "videos" / file_name
-        if file_path.exists():
-            file_path.unlink()
+        if existing.get("storage") == "onedrive" and ONEDRIVE_ENABLED:
+            try:
+                ext = f".{existing['file_type']}" if existing.get("file_type") else Path(file_name).suffix
+                await onedrive.delete_file("videos", video_id, ext)
+            except Exception as e:
+                logger.error(f"OneDrive delete failed for video {video_id}: {e}")
+        else:
+            file_path = UPLOAD_DIR / "videos" / file_name
+            if file_path.exists():
+                file_path.unlink()
 
     await db.videos.delete_one({"id": video_id})
     await log_action(current_user["id"], current_user["full_name"], "delete", "video", video_id, {"title": existing["title"]})

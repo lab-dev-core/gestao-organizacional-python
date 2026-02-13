@@ -1,17 +1,21 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 import uuid
 import json
+import logging
 
 from app.database import db
-from app.config import UPLOAD_DIR, ALLOWED_DOC_EXTENSIONS, MAX_FILE_SIZE
+from app.config import UPLOAD_DIR, ALLOWED_DOC_EXTENSIONS, MAX_FILE_SIZE, ONEDRIVE_ENABLED
 from app.models import DocumentUpdate, DocumentResponse
 from app.utils.security import get_current_user, require_admin_or_formador
 from app.utils.permissions import check_permission
 from app.utils.audit import log_action
+from app.services import onedrive
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -82,14 +86,21 @@ async def create_document(
         raise HTTPException(status_code=400, detail="Invalid file type. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT")
 
     file_id = str(uuid.uuid4())
-    file_path = UPLOAD_DIR / "documents" / f"{file_id}{ext}"
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File too large. Max 500MB")
 
-    with open(file_path, "wb") as buffer:
-        buffer.write(content)
+    if ONEDRIVE_ENABLED:
+        try:
+            await onedrive.upload_file("documents", file_id, content, ext)
+        except Exception as e:
+            logger.error(f"OneDrive upload failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to upload file to cloud storage")
+    else:
+        file_path = UPLOAD_DIR / "documents" / f"{file_id}{ext}"
+        with open(file_path, "wb") as buffer:
+            buffer.write(content)
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -113,6 +124,7 @@ async def create_document(
         "file_name": file.filename,
         "file_size": len(content),
         "file_type": ext[1:],
+        "storage": "onedrive" if ONEDRIVE_ENABLED else "local",
         "uploaded_by": current_user["id"],
         "views": 0,
         "downloads": 0,
@@ -151,9 +163,15 @@ async def delete_document(doc_id: str, current_user: dict = Depends(require_admi
     if not existing:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    file_path = UPLOAD_DIR / "documents" / f"{doc_id}.{existing['file_type']}"
-    if file_path.exists():
-        file_path.unlink()
+    if existing.get("storage") == "onedrive" and ONEDRIVE_ENABLED:
+        try:
+            await onedrive.delete_file("documents", doc_id, f".{existing['file_type']}")
+        except Exception as e:
+            logger.error(f"OneDrive delete failed for document {doc_id}: {e}")
+    else:
+        file_path = UPLOAD_DIR / "documents" / f"{doc_id}.{existing['file_type']}"
+        if file_path.exists():
+            file_path.unlink()
 
     await db.documents.delete_one({"id": doc_id})
     await log_action(current_user["id"], current_user["full_name"], "delete", "document", doc_id, {"title": existing["title"]})
@@ -170,11 +188,27 @@ async def download_document(doc_id: str, current_user: dict = Depends(get_curren
     if not doc.get("is_public") and not check_permission(current_user, doc.get("permissions")):
         raise HTTPException(status_code=403, detail="Access denied")
 
+    await db.documents.update_one({"id": doc_id}, {"$inc": {"downloads": 1}})
+    await log_action(current_user["id"], current_user["full_name"], "download", "document", doc_id, {"title": doc["title"]})
+
+    if doc.get("storage") == "onedrive" and ONEDRIVE_ENABLED:
+        try:
+            file_bytes = await onedrive.download_file("documents", doc_id, f".{doc['file_type']}")
+            if file_bytes is None:
+                raise HTTPException(status_code=404, detail="File not found on cloud storage")
+            return Response(
+                content=file_bytes,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f'attachment; filename="{doc["file_name"]}"'}
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"OneDrive download failed for document {doc_id}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to download from cloud storage")
+
     file_path = UPLOAD_DIR / "documents" / f"{doc_id}.{doc['file_type']}"
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-
-    await db.documents.update_one({"id": doc_id}, {"$inc": {"downloads": 1}})
-    await log_action(current_user["id"], current_user["full_name"], "download", "document", doc_id, {"title": doc["title"]})
 
     return FileResponse(file_path, filename=doc["file_name"], media_type="application/octet-stream")

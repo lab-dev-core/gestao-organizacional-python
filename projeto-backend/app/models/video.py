@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, Dict
 from app.models.document import PermissionModel
+from app.models.video_interaction import GradualReleaseConfig
 
 
 class VideoBase(BaseModel):
@@ -12,6 +13,11 @@ class VideoBase(BaseModel):
     external_url: Optional[str] = None
     is_public: bool = False
     formative_stage_id: Optional[str] = None
+    subcategory_id: Optional[str] = None
+    order: int = 0  # Ordem dentro da subcategoria
+    allow_comments: bool = True  # Permitir comentários
+    allow_evaluation: bool = False  # Permitir avaliação/nota
+    gradual_release: Optional[GradualReleaseConfig] = None  # Liberação gradativa
 
 
 class VideoCreate(VideoBase):
@@ -26,6 +32,11 @@ class VideoUpdate(BaseModel):
     external_url: Optional[str] = None
     is_public: Optional[bool] = None
     formative_stage_id: Optional[str] = None
+    subcategory_id: Optional[str] = None
+    order: Optional[int] = None
+    allow_comments: Optional[bool] = None
+    allow_evaluation: Optional[bool] = None
+    gradual_release: Optional[GradualReleaseConfig] = None
 
 
 class VideoResponse(VideoBase):
@@ -41,6 +52,11 @@ class VideoResponse(VideoBase):
     uploaded_by: str
     views: int = 0
     formative_stage_id: Optional[str] = None
+    subcategory_id: Optional[str] = None
+    subcategory_name: Optional[str] = None
+    comment_count: int = 0
+    average_rating: Optional[float] = None
+    is_unlocked: Optional[bool] = None  # Para liberação gradativa
     created_at: str
     updated_at: str
 

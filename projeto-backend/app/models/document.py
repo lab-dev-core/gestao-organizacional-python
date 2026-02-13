@@ -17,6 +17,7 @@ class DocumentBase(BaseModel):
     version: int = 1
     is_public: bool = False
     formative_stage_id: Optional[str] = None
+    subcategory_id: Optional[str] = None
 
 
 class DocumentCreate(DocumentBase):
@@ -30,6 +31,7 @@ class DocumentUpdate(BaseModel):
     permissions: Optional[PermissionModel] = None
     is_public: Optional[bool] = None
     formative_stage_id: Optional[str] = None
+    subcategory_id: Optional[str] = None
 
 
 class DocumentResponse(DocumentBase):
@@ -44,5 +46,7 @@ class DocumentResponse(DocumentBase):
     views: int = 0
     downloads: int = 0
     formative_stage_id: Optional[str] = None
+    subcategory_id: Optional[str] = None
+    subcategory_name: Optional[str] = None
     created_at: str
     updated_at: str

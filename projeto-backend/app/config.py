@@ -32,6 +32,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 (UPLOAD_DIR / "documents").mkdir(exist_ok=True)
 (UPLOAD_DIR / "videos").mkdir(exist_ok=True)
 (UPLOAD_DIR / "photos").mkdir(exist_ok=True)
+(UPLOAD_DIR / "certificates").mkdir(exist_ok=True)
 
 ALLOWED_DOC_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}

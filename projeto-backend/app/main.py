@@ -104,14 +104,14 @@ async def request_logging_middleware(request: Request, call_next):
 @app.on_event("startup")
 async def startup_event():
     """Create default superadmin if none exists"""
-    superadmin_count = await db.users.count_documents({"role": UserRole.SUPERADMIN})
+    superadmin_count = await db.users.count_documents({"$or": [{"roles": UserRole.SUPERADMIN}, {"role": UserRole.SUPERADMIN}]})
     if superadmin_count == 0:
         default_superadmin = {
             "id": str(uuid.uuid4()),
             "full_name": "Super Administrador",
             "email": SUPERADMIN_EMAIL,
             "password": bcrypt.hashpw(SUPERADMIN_PASSWORD.encode(), bcrypt.gensalt()).decode(),
-            "role": UserRole.SUPERADMIN,
+            "roles": [UserRole.SUPERADMIN],
             "status": UserStatus.ACTIVE,
             "tenant_id": None,
             "is_tenant_owner": False,
@@ -139,6 +139,8 @@ async def startup_event():
     await db.stage_participations.create_index("tenant_id")
     await db.stage_participations.create_index("cycle_id")
     await db.stage_participations.create_index("user_id")
+    await db.certificates.create_index("tenant_id")
+    await db.certificates.create_index("user_id")
 
     logger.info("Database indexes created")
 

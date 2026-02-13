@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.routes import auth, users, locations, functions, formative_stages, documents, videos, acompanhamentos, audit, stats, files, tenants, user_journey, stage_cycles, stage_participations
+from app.routes import auth, users, locations, functions, formative_stages, documents, videos, acompanhamentos, audit, stats, files, tenants, user_journey, stage_cycles, stage_participations, certificates
 
 api_router = APIRouter(prefix="/api")
 
@@ -18,3 +18,4 @@ api_router.include_router(audit.router, prefix="/audit-logs", tags=["Audit Logs"
 api_router.include_router(stats.router, prefix="/stats", tags=["Statistics"])
 api_router.include_router(files.router, prefix="/uploads", tags=["Files"])
 api_router.include_router(user_journey.router, prefix="/user-journey", tags=["User Journey"])
+api_router.include_router(certificates.router, prefix="/certificates", tags=["Certificates"])

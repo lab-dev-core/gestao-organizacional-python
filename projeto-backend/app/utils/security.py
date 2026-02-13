@@ -18,11 +18,28 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_access_token(user_id: str, role: str, tenant_id: str = None) -> str:
+def get_user_roles(user: dict) -> list:
+    """Get roles from user dict, handling backward compat (old 'role' field -> new 'roles' list)."""
+    if "roles" in user and isinstance(user["roles"], list):
+        return user["roles"]
+    if "role" in user:
+        return [user["role"]]
+    return [UserRole.USER]
+
+
+def normalize_user_roles(user: dict) -> dict:
+    """Ensure user dict has 'roles' list, converting from old 'role' field if needed."""
+    roles = get_user_roles(user)
+    user["roles"] = roles
+    return user
+
+
+def create_access_token(user_id: str, roles, tenant_id: str = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    roles_list = roles if isinstance(roles, list) else [roles]
     payload = {
         "user_id": user_id,
-        "role": role,
+        "roles": roles_list,
         "tenant_id": tenant_id,
         "exp": expire,
         "type": "access"
@@ -60,38 +77,44 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    normalize_user_roles(user)
     return user
 
 
 async def require_superadmin(current_user: dict = Depends(get_current_user)) -> dict:
     """Require superadmin role - can manage all tenants"""
-    if current_user.get("role") != UserRole.SUPERADMIN:
+    roles = get_user_roles(current_user)
+    if UserRole.SUPERADMIN not in roles:
         raise HTTPException(status_code=403, detail="Superadmin access required")
     return current_user
 
 
 async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     """Require admin role within the tenant (or superadmin)"""
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+    roles = get_user_roles(current_user)
+    if UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
 
 async def require_admin_or_formador(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]:
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]):
         raise HTTPException(status_code=403, detail="Admin or Formador access required")
     return current_user
 
 
 async def require_formador(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]:
+    roles = get_user_roles(current_user)
+    if not any(r in roles for r in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]):
         raise HTTPException(status_code=403, detail="Only formadores can manage follow-ups")
     return current_user
 
 
 def get_tenant_filter(current_user: dict) -> dict:
     """Get tenant filter for queries - superadmin sees all, others see only their tenant"""
-    if current_user.get("role") == UserRole.SUPERADMIN:
+    roles = get_user_roles(current_user)
+    if UserRole.SUPERADMIN in roles:
         return {}  # No filter for superadmin
 
     tenant_id = current_user.get("tenant_id")

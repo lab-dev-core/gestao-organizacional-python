@@ -16,7 +16,7 @@ ONEDRIVE_FOLDERS = {"documents", "videos"}
 
 @router.get("/{folder}/{filename}")
 async def serve_file(folder: str, filename: str):
-    if folder not in ["documents", "videos", "photos"]:
+    if folder not in ["documents", "videos", "photos", "certificates"]:
         raise HTTPException(status_code=404, detail="Invalid folder")
 
     # Tenta servir do filesystem local primeiro

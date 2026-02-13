@@ -151,10 +151,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const isSuperAdmin = user?.role === 'superadmin';
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-  const isFormador = user?.role === 'formador';
-  const isUser = user?.role === 'user';
+  const userRoles = user?.roles || (user?.role ? [user.role] : []);
+  const isSuperAdmin = userRoles.includes('superadmin');
+  const isAdmin = userRoles.includes('admin') || userRoles.includes('superadmin');
+  const isFormador = userRoles.includes('formador') || isAdmin;
+  const isUser = userRoles.includes('user');
   const isTenantOwner = user?.is_tenant_owner === true;
 
   const value = {

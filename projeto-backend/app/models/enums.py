@@ -13,6 +13,18 @@ class UserStatus(str, Enum):
     INACTIVE = "inactive"
 
 
+class EducationLevel(str, Enum):
+    FUNDAMENTAL_INCOMPLETO = "fundamental_incompleto"
+    FUNDAMENTAL_COMPLETO = "fundamental_completo"
+    MEDIO_INCOMPLETO = "medio_incompleto"
+    MEDIO_COMPLETO = "medio_completo"
+    SUPERIOR_INCOMPLETO = "superior_incompleto"
+    SUPERIOR_COMPLETO = "superior_completo"
+    POS_GRADUACAO = "pos_graduacao"
+    MESTRADO = "mestrado"
+    DOUTORADO = "doutorado"
+
+
 class AcompanhamentoFrequency(str, Enum):
     WEEKLY = "weekly"
     BIWEEKLY = "biweekly"

@@ -1,10 +1,10 @@
-from app.models.enums import UserRole, UserStatus, AcompanhamentoFrequency
+from app.models.enums import UserRole, UserStatus, EducationLevel, AcompanhamentoFrequency
 from app.models.tenant import (
     TenantPlan, TenantStatus, TenantBase, TenantCreate, TenantUpdate,
     TenantResponse, TenantStatsResponse
 )
 from app.models.user import (
-    AddressModel, UserBase, UserCreate, UserUpdate, UserResponse,
+    AddressModel, FamilyContactModel, UserBase, UserCreate, UserUpdate, UserResponse,
     LoginRequest, TokenResponse, RefreshTokenRequest,
     PasswordResetRequest, PasswordResetConfirm
 )
@@ -18,3 +18,4 @@ from app.models.audit import AuditLogResponse
 from app.models.user_journey import UserJourneyBase, UserJourneyCreate, UserJourneyResponse
 from app.models.stage_cycle import CycleStatus, StageCycleBase, StageCycleCreate, StageCycleUpdate, StageCycleResponse
 from app.models.stage_participation import ParticipationStatus, StageParticipationBase, StageParticipationCreate, StageParticipationUpdate, StageParticipationResponse, UserJourneyFullResponse
+from app.models.certificate import CertificateBase, CertificateCreate, CertificateUpdate, CertificateResponse

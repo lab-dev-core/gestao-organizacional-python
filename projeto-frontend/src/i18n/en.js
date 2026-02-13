@@ -261,6 +261,44 @@ const en = {
   confirmDelete: 'Confirm Delete',
   confirmDeleteMessage: 'Are you sure you want to delete this item?',
   actionCannotBeUndone: 'This action cannot be undone.',
+
+  // Family Contact
+  familyContact: 'Family Contact',
+  familyContactName: 'Contact Name',
+  familyContactPhone: 'Contact Phone',
+  familyContactRelationship: 'Relationship',
+
+  // Education Level
+  educationLevel: 'Education Level',
+  fundamental_incompleto: 'Elementary (Incomplete)',
+  fundamental_completo: 'Elementary (Complete)',
+  medio_incompleto: 'High School (Incomplete)',
+  medio_completo: 'High School (Complete)',
+  superior_incompleto: 'College (Incomplete)',
+  superior_completo: 'College (Complete)',
+  pos_graduacao: 'Post-Graduate',
+  mestrado: "Master's Degree",
+  doutorado: 'Doctorate',
+
+  // Roles (multiple)
+  roles: 'Roles',
+  selectRoles: 'Select Roles',
+
+  // Certificates
+  certificates: 'Certificates',
+  certificatesDescription: 'Manage certificates and completed courses',
+  newCertificate: 'New Certificate',
+  editCertificate: 'Edit Certificate',
+  certificateTitle: 'Certificate Title',
+  issuingInstitution: 'Issuing Institution',
+  issueDate: 'Issue Date',
+  certificateCreated: 'Certificate created successfully',
+  certificateUpdated: 'Certificate updated successfully',
+  certificateDeleted: 'Certificate deleted successfully',
+  noCertificatesFound: 'No certificates found',
+  uploadCertificate: 'Upload Certificate',
+  viewFile: 'View File',
+  filterByUser: 'Filter by User',
 };
 
 export default en;

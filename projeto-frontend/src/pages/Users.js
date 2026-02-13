@@ -13,15 +13,30 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Separator } from '../components/ui/separator';
+import { Checkbox } from '../components/ui/checkbox';
 import { Plus, Search, Pencil, Trash2, Users, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
+const EDUCATION_LEVELS = [
+  'fundamental_incompleto', 'fundamental_completo',
+  'medio_incompleto', 'medio_completo',
+  'superior_incompleto', 'superior_completo',
+  'pos_graduacao', 'mestrado', 'doutorado'
+];
+
+const AVAILABLE_ROLES = [
+  { value: 'user', labelKey: 'user' },
+  { value: 'formador', labelKey: 'formadorRole' },
+  { value: 'admin', labelKey: 'admin' },
+];
+
 const UsersPage = () => {
   const { getAuthHeaders, isAdmin } = useAuth();
   const { t } = useLanguage();
-  
+
   const [users, setUsers] = useState([]);
   const [locations, setLocations] = useState([]);
   const [functions, setFunctions] = useState([]);
@@ -41,20 +56,17 @@ const UsersPage = () => {
     birth_date: '',
     phone: '',
     cpf: '',
-    role: 'user',
+    roles: ['user'],
     status: 'active',
     location_id: '',
     function_id: '',
     formative_stage_id: '',
     formador_id: '',
+    education_level: '',
+    family_contact: { name: '', phone: '', relationship: '' },
     address: {
-      cep: '',
-      street: '',
-      number: '',
-      complement: '',
-      neighborhood: '',
-      city: '',
-      state: ''
+      cep: '', street: '', number: '', complement: '',
+      neighborhood: '', city: '', state: ''
     }
   });
 
@@ -68,7 +80,7 @@ const UsersPage = () => {
         axios.get(`${API_URL}/formative-stages`, { headers }),
         axios.get(`${API_URL}/users/formadores`, { headers })
       ]);
-      
+
       setUsers(usersRes.data);
       setLocations(locationsRes.data);
       setFunctions(functionsRes.data);
@@ -88,18 +100,11 @@ const UsersPage = () => {
 
   const resetForm = () => {
     setFormData({
-      full_name: '',
-      email: '',
-      password: '',
-      birth_date: '',
-      phone: '',
-      cpf: '',
-      role: 'user',
-      status: 'active',
-      location_id: '',
-      function_id: '',
-      formative_stage_id: '',
-      formador_id: '',
+      full_name: '', email: '', password: '', birth_date: '',
+      phone: '', cpf: '', roles: ['user'], status: 'active',
+      location_id: '', function_id: '', formative_stage_id: '', formador_id: '',
+      education_level: '',
+      family_contact: { name: '', phone: '', relationship: '' },
       address: { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' }
     });
     setEditingUser(null);
@@ -109,9 +114,12 @@ const UsersPage = () => {
   const handleOpenDialog = (user = null) => {
     if (user) {
       setEditingUser(user);
+      const userRoles = user.roles || (user.role ? [user.role] : ['user']);
       setFormData({
         ...user,
         password: '',
+        roles: userRoles,
+        family_contact: user.family_contact || { name: '', phone: '', relationship: '' },
         address: user.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' }
       });
     } else {
@@ -132,21 +140,31 @@ const UsersPage = () => {
     }
   };
 
+  const handleRoleToggle = (role) => {
+    setFormData(prev => {
+      const currentRoles = prev.roles || [];
+      if (currentRoles.includes(role)) {
+        const newRoles = currentRoles.filter(r => r !== role);
+        return { ...prev, roles: newRoles.length > 0 ? newRoles : ['user'] };
+      } else {
+        return { ...prev, roles: [...currentRoles, role] };
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const headers = getAuthHeaders();
       const payload = { ...formData };
-      
-      // Remove empty password on edit
+
       if (editingUser && !payload.password) {
         delete payload.password;
       }
-      
-      // Clean empty values
+
       Object.keys(payload).forEach(key => {
         if (payload[key] === '' || payload[key] === 'none') {
-          delete payload[key];
+          if (key !== 'roles') delete payload[key];
         }
       });
 
@@ -157,7 +175,7 @@ const UsersPage = () => {
         await axios.post(`${API_URL}/users`, payload, { headers });
         toast.success(t('userCreated'));
       }
-      
+
       setDialogOpen(false);
       resetForm();
       fetchData();
@@ -184,18 +202,25 @@ const UsersPage = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const getRoleBadge = (role) => {
+  const getRoleBadges = (user) => {
+    const roles = user.roles || (user.role ? [user.role] : ['user']);
     const variants = {
       admin: 'destructive',
       formador: 'default',
       user: 'secondary'
     };
     const labels = { admin: t('admin'), formador: t('formadorRole'), user: t('user') };
-    return <Badge variant={variants[role]}>{labels[role]}</Badge>;
+    return (
+      <div className="flex gap-1 flex-wrap">
+        {roles.map(role => (
+          <Badge key={role} variant={variants[role] || 'secondary'}>{labels[role] || role}</Badge>
+        ))}
+      </div>
+    );
   };
 
   const getStatusBadge = (status) => {
-    return status === 'active' 
+    return status === 'active'
       ? <Badge variant="outline" className="border-green-500 text-green-600">{t('active')}</Badge>
       : <Badge variant="outline" className="border-red-500 text-red-600">{t('inactive')}</Badge>;
   };
@@ -203,7 +228,8 @@ const UsersPage = () => {
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.full_name?.toLowerCase().includes(search.toLowerCase()) ||
                          user.email?.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    const userRoles = user.roles || (user.role ? [user.role] : []);
+    const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -224,7 +250,7 @@ const UsersPage = () => {
           <h1 className="text-3xl font-bold tracking-tight">{t('users')}</h1>
           <p className="text-muted-foreground mt-1">{users.length} {t('users').toLowerCase()}</p>
         </div>
-        
+
         {isAdmin && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -308,19 +334,26 @@ const UsersPage = () => {
                         data-testid="user-cpf-input"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>{t('role')} *</Label>
-                      <Select value={formData.role} onValueChange={(v) => handleChange('role', v)}>
-                        <SelectTrigger data-testid="user-role-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">{t('user')}</SelectItem>
-                          <SelectItem value="formador">{t('formadorRole')}</SelectItem>
-                          <SelectItem value="admin">{t('admin')}</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                    {/* Multi-role selection */}
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>{t('roles')} *</Label>
+                      <div className="flex flex-wrap gap-4 p-3 border rounded-md">
+                        {AVAILABLE_ROLES.map(({ value, labelKey }) => (
+                          <div key={value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`role-${value}`}
+                              checked={(formData.roles || []).includes(value)}
+                              onCheckedChange={() => handleRoleToggle(value)}
+                            />
+                            <label htmlFor={`role-${value}`} className="text-sm font-medium cursor-pointer">
+                              {t(labelKey)}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label>{t('status')}</Label>
                       <Select value={formData.status} onValueChange={(v) => handleChange('status', v)}>
@@ -330,6 +363,20 @@ const UsersPage = () => {
                         <SelectContent>
                           <SelectItem value="active">{t('active')}</SelectItem>
                           <SelectItem value="inactive">{t('inactive')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('educationLevel')}</Label>
+                      <Select value={formData.education_level || 'none'} onValueChange={(v) => handleChange('education_level', v === 'none' ? '' : v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {EDUCATION_LEVELS.map(level => (
+                            <SelectItem key={level} value={level}>{t(level)}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -388,6 +435,37 @@ const UsersPage = () => {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+
+                  {/* Family Contact Section */}
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="font-semibold mb-4">{t('familyContact')}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t('familyContactName')}</Label>
+                        <Input
+                          value={formData.family_contact?.name || ''}
+                          onChange={(e) => handleChange('family_contact.name', e.target.value)}
+                          placeholder="Nome do familiar"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('familyContactPhone')}</Label>
+                        <Input
+                          value={formData.family_contact?.phone || ''}
+                          onChange={(e) => handleChange('family_contact.phone', e.target.value)}
+                          placeholder="(11) 99999-9999"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('familyContactRelationship')}</Label>
+                        <Input
+                          value={formData.family_contact?.relationship || ''}
+                          onChange={(e) => handleChange('family_contact.relationship', e.target.value)}
+                          placeholder="Ex: Mãe, Pai, Cônjuge"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -510,7 +588,7 @@ const UsersPage = () => {
                 <TableRow>
                   <TableHead>{t('user')}</TableHead>
                   <TableHead>{t('email')}</TableHead>
-                  <TableHead>{t('role')}</TableHead>
+                  <TableHead>{t('roles')}</TableHead>
                   <TableHead>{t('status')}</TableHead>
                   <TableHead>{t('location')}</TableHead>
                   <TableHead className="text-right">{t('actions')}</TableHead>
@@ -539,7 +617,7 @@ const UsersPage = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      <TableCell>{getRoleBadges(user)}</TableCell>
                       <TableCell>{getStatusBadge(user.status)}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {locations.find(l => l.id === user.location_id)?.name || '-'}

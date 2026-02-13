@@ -36,6 +36,8 @@ jobs:
             echo "==> Installing backend dependencies..."
             cd $BACKEND_DIR
             if [ -d "venv" ]; then
+              # Fix ownership in case venv was created by another user
+              sudo chown -R $(whoami):$(whoami) venv
               source venv/bin/activate
             else
               python3 -m venv venv

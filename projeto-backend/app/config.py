@@ -38,6 +38,14 @@ ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 
+# OneDrive (Microsoft Graph API)
+ONEDRIVE_CLIENT_ID = os.environ.get('ONEDRIVE_CLIENT_ID', '')
+ONEDRIVE_CLIENT_SECRET = os.environ.get('ONEDRIVE_CLIENT_SECRET', '')
+ONEDRIVE_TENANT_ID = os.environ.get('ONEDRIVE_TENANT_ID', '')
+ONEDRIVE_DRIVE_ID = os.environ.get('ONEDRIVE_DRIVE_ID', '')
+ONEDRIVE_BASE_FOLDER = os.environ.get('ONEDRIVE_BASE_FOLDER', 'gestao-organizacional')
+ONEDRIVE_ENABLED = bool(ONEDRIVE_CLIENT_ID and ONEDRIVE_CLIENT_SECRET and ONEDRIVE_TENANT_ID)
+
 # CORS
 CORS_ORIGINS = [origin.strip() for origin in os.environ.get('CORS_ORIGINS', '*').split(',') if origin.strip()]
 

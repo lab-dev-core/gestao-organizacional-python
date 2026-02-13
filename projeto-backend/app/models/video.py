@@ -34,6 +34,8 @@ class VideoResponse(VideoBase):
     file_url: Optional[str] = None
     file_name: Optional[str] = None
     file_size: Optional[int] = None
+    file_type: Optional[str] = None
+    storage: Optional[str] = None
     thumbnail_url: Optional[str] = None
     duration: Optional[int] = None
     uploaded_by: str

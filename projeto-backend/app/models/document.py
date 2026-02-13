@@ -39,6 +39,7 @@ class DocumentResponse(DocumentBase):
     file_name: str
     file_size: int
     file_type: str
+    storage: Optional[str] = "local"
     uploaded_by: str
     views: int = 0
     downloads: int = 0

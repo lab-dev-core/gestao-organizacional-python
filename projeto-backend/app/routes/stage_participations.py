@@ -256,6 +256,32 @@ async def create_participation(
 
     await db.stage_participations.insert_one(dict(participation))
 
+    # Sincronizar etapa formativa do usuário com a etapa do ciclo
+    cycle_stage_id = cycle.get("formative_stage_id")
+    old_stage_id = user.get("formative_stage_id")
+
+    if cycle_stage_id and cycle_stage_id != old_stage_id:
+        # Atualizar formative_stage_id do usuário
+        await db.users.update_one(
+            {"id": data.user_id},
+            {"$set": {"formative_stage_id": cycle_stage_id, "updated_at": now}}
+        )
+
+        # Registrar transição no user_journey
+        journey_record = {
+            "id": str(uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "user_id": data.user_id,
+            "from_stage_id": old_stage_id,
+            "to_stage_id": cycle_stage_id,
+            "notes": f"Transição automática ao inscrever no ciclo: {cycle.get('name')}",
+            "changed_by_id": current_user["id"],
+            "changed_by_name": current_user["full_name"],
+            "transition_date": now,
+            "created_at": now
+        }
+        await db.user_journey.insert_one(journey_record)
+
     await log_action(
         current_user["id"],
         current_user["full_name"],
@@ -264,7 +290,8 @@ async def create_participation(
         participation["id"],
         {
             "user": user.get("full_name"),
-            "cycle": cycle.get("name")
+            "cycle": cycle.get("name"),
+            "stage_synced": cycle_stage_id != old_stage_id
         }
     )
 
@@ -297,6 +324,59 @@ async def update_participation(
 
     await db.stage_participations.update_one({"id": participation_id}, {"$set": update_dict})
 
+    # Se aprovado via PUT, avançar para próxima etapa (mesma lógica do /approve)
+    tenant_id = current_user.get("tenant_id")
+    if data.status == ParticipationStatus.APPROVED:
+        user_id = existing.get("user_id")
+        cycle = await db.stage_cycles.find_one({"id": existing.get("cycle_id")})
+
+        if cycle and user_id:
+            current_stage_id = cycle.get("formative_stage_id")
+            current_stage = await db.formative_stages.find_one({"id": current_stage_id}) if current_stage_id else None
+
+            if current_stage:
+                next_stage_query = {"order": {"$gt": current_stage.get("order", 0)}}
+                if tenant_id:
+                    next_stage_query["tenant_id"] = tenant_id
+                next_stage = await db.formative_stages.find_one(
+                    next_stage_query,
+                    sort=[("order", 1)]
+                )
+
+                if next_stage:
+                    await db.users.update_one(
+                        {"id": user_id},
+                        {"$set": {"formative_stage_id": next_stage["id"], "updated_at": now}}
+                    )
+
+                    journey_record = {
+                        "id": str(uuid.uuid4()),
+                        "tenant_id": tenant_id,
+                        "user_id": user_id,
+                        "from_stage_id": current_stage_id,
+                        "to_stage_id": next_stage["id"],
+                        "notes": f"Aprovado no ciclo: {cycle.get('name')}. Avançou de {current_stage.get('name')} para {next_stage.get('name')}.",
+                        "changed_by_id": current_user["id"],
+                        "changed_by_name": current_user["full_name"],
+                        "transition_date": now,
+                        "created_at": now
+                    }
+                    await db.user_journey.insert_one(journey_record)
+
+                    await log_action(
+                        current_user["id"],
+                        current_user["full_name"],
+                        "stage_advance",
+                        "user",
+                        user_id,
+                        {
+                            "from_stage": current_stage.get("name"),
+                            "to_stage": next_stage.get("name"),
+                            "participation_id": participation_id
+                        },
+                        tenant_id
+                    )
+
     await log_action(
         current_user["id"],
         current_user["full_name"],
@@ -316,7 +396,7 @@ async def approve_participation(
     evaluation_notes: Optional[str] = None,
     current_user: dict = Depends(require_admin)
 ):
-    """Aprova um participante no ciclo"""
+    """Aprova um participante no ciclo e avança para a próxima etapa"""
     query = get_tenant_filter(current_user)
     query["id"] = participation_id
 
@@ -338,6 +418,61 @@ async def approve_participation(
         update_dict["evaluation_notes"] = evaluation_notes
 
     await db.stage_participations.update_one({"id": participation_id}, {"$set": update_dict})
+
+    # Avançar o usuário para a próxima etapa formativa
+    user_id = existing.get("user_id")
+    cycle = await db.stage_cycles.find_one({"id": existing.get("cycle_id")})
+    tenant_id = current_user.get("tenant_id")
+
+    if cycle and user_id:
+        current_stage_id = cycle.get("formative_stage_id")
+        current_stage = await db.formative_stages.find_one({"id": current_stage_id}) if current_stage_id else None
+
+        if current_stage:
+            # Buscar próxima etapa pela ordem
+            next_stage_query = {"order": {"$gt": current_stage.get("order", 0)}}
+            if tenant_id:
+                next_stage_query["tenant_id"] = tenant_id
+            next_stage = await db.formative_stages.find_one(
+                next_stage_query,
+                sort=[("order", 1)]
+            )
+
+            if next_stage:
+                # Atualizar formative_stage_id do usuário para a próxima etapa
+                await db.users.update_one(
+                    {"id": user_id},
+                    {"$set": {"formative_stage_id": next_stage["id"], "updated_at": now}}
+                )
+
+                # Registrar transição no user_journey
+                journey_record = {
+                    "id": str(uuid.uuid4()),
+                    "tenant_id": tenant_id,
+                    "user_id": user_id,
+                    "from_stage_id": current_stage_id,
+                    "to_stage_id": next_stage["id"],
+                    "notes": f"Aprovado no ciclo: {cycle.get('name')}. Avançou de {current_stage.get('name')} para {next_stage.get('name')}.",
+                    "changed_by_id": current_user["id"],
+                    "changed_by_name": current_user["full_name"],
+                    "transition_date": now,
+                    "created_at": now
+                }
+                await db.user_journey.insert_one(journey_record)
+
+                await log_action(
+                    current_user["id"],
+                    current_user["full_name"],
+                    "stage_advance",
+                    "user",
+                    user_id,
+                    {
+                        "from_stage": current_stage.get("name"),
+                        "to_stage": next_stage.get("name"),
+                        "participation_id": participation_id
+                    },
+                    tenant_id
+                )
 
     await log_action(
         current_user["id"],

@@ -1,9 +1,14 @@
 Seção: Documentos
 - Visualizar no proprio navegador o arquivo sem ter a necessidade de fazer o download
 - Marca e barra de progresso ao consumir os arquivos (informação pertinente para após o termino do ciclo fazer a avaliação do formando)
-
-Seção: Documentos
+- Documentos - subcategorias
 - Quem pode visualizar o documento?
+
+Seção: Videos
+- Videos - subcategorias - disponibilidade de comentários, arquivos - possibilidade de avaliação - liberação gradativa com base em avaliação.
+- Quem pode visualizar o video?
+
+
 
 Seção: Acompanhamento
 - Verificar se acompanhado está lendo e visualizando o conteúdo dos seus acompanhamentos

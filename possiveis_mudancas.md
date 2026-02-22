@@ -19,6 +19,7 @@ Seção: Documentos
 Seção: Videos
 - Videos - subcategorias - disponibilidade de comentários, arquivos - possibilidade de avaliação - liberação gradativa com base em avaliação.
 - Quem pode visualizar o video?
+- Erro ao visualizar o video no youtube (Erro 153 - Erro de configuração do player de vídeo)
 
 Seção: Acompanhamento
 - Verificar se acompanhado está lendo e visualizando o conteúdo dos seus acompanhamentos

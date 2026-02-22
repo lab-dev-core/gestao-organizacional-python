@@ -22,6 +22,7 @@ Seção: Acompanhamento
 - Verificar se acompanhado está lendo e visualizando o conteúdo dos seus acompanhamentos
 - Adicionar campo para anexar arquivo de texto, word ou foto relacionado ao acompanhamento
 - Possibilidade de configuração de um cabeçalho e rodapé oficial da instituição para exportar os arquivos
+- Integração com IA ou ao menos possibilidade de Gravar o acompanhamento e a IA transcrever para auxiliar no registro
 
 Seção: Misc
 - Relatorio individual do formando demonstrando a barra de progresso do quanto ele consumiu os arquivos e videos, numero de acompanhamentos feitos

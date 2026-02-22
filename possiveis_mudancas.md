@@ -1,5 +1,7 @@
 Seção: Login
 - Possibilidade de fazer login com o nome de usuario ou CPF nao somente email
+- Integração SSO (Google e Microsoft)
+- Campo para recuperar senha
 
 Seção: Cadastro usuario
 - Cadastrar nome de usuario para acesso ao sistema

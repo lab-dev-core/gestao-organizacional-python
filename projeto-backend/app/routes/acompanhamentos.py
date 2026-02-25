@@ -147,6 +147,13 @@ async def get_acompanhamento(acomp_id: str, current_user: dict = Depends(get_cur
         if acomp["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
 
+    await log_action(
+        current_user["id"], current_user["full_name"],
+        "view", "acompanhamento", acomp_id,
+        {"user": acomp.get("user_name")},
+        current_user.get("tenant_id")
+    )
+
     return acomp
 
 

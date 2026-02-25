@@ -164,6 +164,14 @@ async def startup_event():
     await db.video_attachments.create_index("video_id")
     await db.video_progress.create_index([("video_id", 1), ("user_id", 1)])
 
+    # Document interactions indexes
+    await db.document_comments.create_index("document_id")
+    await db.document_comments.create_index("user_id")
+    await db.document_evaluations.create_index("document_id")
+    await db.document_evaluations.create_index([("document_id", 1), ("user_id", 1)])
+    await db.document_attachments.create_index("document_id")
+    await db.document_access.create_index([("document_id", 1), ("user_id", 1)])
+
     # Audit logs indexes
     await db.audit_logs.create_index("tenant_id")
     await db.audit_logs.create_index("user_id")

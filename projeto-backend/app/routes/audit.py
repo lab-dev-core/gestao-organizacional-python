@@ -145,10 +145,26 @@ async def get_audit_summary(
     ]).to_list(20)
 
     # Downloads de documentos
-    download_query = {**match_query, "action": "download"}
-    total_downloads = await db.audit_logs.count_documents(download_query)
+    download_query = {**match_query, "action": "download", "resource_type": "document"}
+    total_doc_downloads = await db.audit_logs.count_documents(download_query)
 
-    # Visualizações
+    # Visualizações de documentos
+    doc_view_query = {**match_query, "action": "view", "resource_type": "document"}
+    total_doc_views = await db.audit_logs.count_documents(doc_view_query)
+
+    # Visualizações de vídeos
+    video_view_query = {**match_query, "action": "view", "resource_type": "video"}
+    total_video_views = await db.audit_logs.count_documents(video_view_query)
+
+    # Conclusões de vídeos
+    video_complete_query = {**match_query, "action": "complete", "resource_type": "video"}
+    total_video_completions = await db.audit_logs.count_documents(video_complete_query)
+
+    # Visualizações de acompanhamentos
+    acomp_view_query = {**match_query, "action": "view", "resource_type": "acompanhamento"}
+    total_acomp_views = await db.audit_logs.count_documents(acomp_view_query)
+
+    # Visualizações totais (todos os recursos)
     view_query = {**match_query, "action": "view"}
     total_views = await db.audit_logs.count_documents(view_query)
 
@@ -157,8 +173,12 @@ async def get_audit_summary(
 
     return {
         "total_logs": total,
-        "total_downloads": total_downloads,
         "total_views": total_views,
+        "total_doc_downloads": total_doc_downloads,
+        "total_doc_views": total_doc_views,
+        "total_video_views": total_video_views,
+        "total_video_completions": total_video_completions,
+        "total_acomp_views": total_acomp_views,
         "by_action": [{"action": item["_id"], "count": item["count"]} for item in by_action],
         "by_resource_type": [{"resource_type": item["_id"], "count": item["count"]} for item in by_resource],
         "top_users": [

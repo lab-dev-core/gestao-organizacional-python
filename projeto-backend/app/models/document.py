@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Any
 
 
 class PermissionModel(BaseModel):
@@ -18,6 +18,9 @@ class DocumentBase(BaseModel):
     is_public: bool = False
     formative_stage_id: Optional[str] = None
     subcategory_id: Optional[str] = None
+    allow_comments: bool = False
+    allow_evaluation: bool = False
+    gradual_release: Optional[Any] = None  # DocumentGradualReleaseConfig
 
 
 class DocumentCreate(DocumentBase):
@@ -32,6 +35,9 @@ class DocumentUpdate(BaseModel):
     is_public: Optional[bool] = None
     formative_stage_id: Optional[str] = None
     subcategory_id: Optional[str] = None
+    allow_comments: Optional[bool] = None
+    allow_evaluation: Optional[bool] = None
+    gradual_release: Optional[Any] = None  # DocumentGradualReleaseConfig
 
 
 class DocumentResponse(DocumentBase):
@@ -48,5 +54,8 @@ class DocumentResponse(DocumentBase):
     formative_stage_id: Optional[str] = None
     subcategory_id: Optional[str] = None
     subcategory_name: Optional[str] = None
+    comment_count: Optional[int] = None
+    average_rating: Optional[float] = None
+    is_unlocked: Optional[bool] = None
     created_at: str
     updated_at: str

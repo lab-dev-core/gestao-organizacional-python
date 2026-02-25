@@ -34,3 +34,9 @@ from app.models.video_interaction import (
     VideoEvaluationBase, VideoEvaluationCreate, VideoEvaluationResponse,
     VideoAttachmentResponse, ReleaseType, GradualReleaseConfig, VideoAccessStatus
 )
+from app.models.document_interaction import (
+    DocumentCommentBase, DocumentCommentCreate, DocumentCommentUpdate, DocumentCommentResponse,
+    DocumentEvaluationBase, DocumentEvaluationCreate, DocumentEvaluationResponse,
+    DocumentAttachmentResponse, DocumentReleaseType, DocumentGradualReleaseConfig,
+    DocumentAccessStatus, DocumentAccessRecord
+)

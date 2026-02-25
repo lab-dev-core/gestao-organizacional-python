@@ -23,7 +23,7 @@ class UserJourneyCreate(BaseModel):
 class UserJourneyResponse(UserJourneyBase):
     model_config = ConfigDict(extra="ignore")
     id: str
-    tenant_id: str
+    tenant_id: Optional[str] = None
     from_stage_name: Optional[str] = None
     to_stage_name: Optional[str] = None
     user_name: Optional[str] = None

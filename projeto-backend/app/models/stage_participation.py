@@ -45,7 +45,7 @@ class StageParticipationUpdate(BaseModel):
 class StageParticipationResponse(StageParticipationBase):
     model_config = ConfigDict(extra="ignore")
     id: str
-    tenant_id: str
+    tenant_id: Optional[str] = None
     # Dados populados
     user_name: Optional[str] = None
     user_email: Optional[str] = None

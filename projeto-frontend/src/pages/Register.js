@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 const Register = () => {
   const [formData, setFormData] = useState({
     full_name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -51,11 +52,15 @@ const Register = () => {
     setLoading(true);
 
     try {
-      await register({
+      const payload = {
         full_name: formData.full_name,
         email: formData.email,
         password: formData.password
-      });
+      };
+      if (formData.username.trim()) {
+        payload.username = formData.username.trim();
+      }
+      await register(payload);
       toast.success(t('loginSuccess'));
       navigate('/dashboard');
     } catch (err) {
@@ -137,6 +142,23 @@ const Register = () => {
                 className="h-12"
                 data-testid="register-name-input"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-sm font-medium">
+                Nome de usuário <span className="text-muted-foreground text-xs">(opcional)</span>
+              </Label>
+              <Input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="joao.silva"
+                value={formData.username}
+                onChange={handleChange}
+                className="h-12"
+                data-testid="register-username-input"
+              />
+              <p className="text-xs text-muted-foreground">Usado para login no sistema. Sem espaços.</p>
             </div>
 
             <div className="space-y-2">

@@ -76,10 +76,10 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const login = async (email, password, tenantSlug = null) => {
+  const login = async (identifier, password, tenantSlug = null) => {
     try {
       setError(null);
-      const payload = { email, password };
+      const payload = { identifier, password };
       if (tenantSlug) {
         payload.tenant_slug = tenantSlug;
       }

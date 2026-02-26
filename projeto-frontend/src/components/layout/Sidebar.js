@@ -19,7 +19,8 @@ import {
   Shield,
   Route,
   CalendarDays,
-  Award
+  Award,
+  BarChart2
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -39,6 +40,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: Video, label: t('videos'), href: '/videos' },
     { icon: MessageSquare, label: 'Acompanhamentos', href: '/acompanhamentos' },
     { icon: Award, label: t('certificates'), href: '/certificates' },
+    { icon: BarChart2, label: 'Relatório Formando', href: '/relatorio-formando' },
   ];
 
   const adminNavItems = [

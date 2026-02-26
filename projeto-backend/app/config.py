@@ -35,6 +35,8 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 (UPLOAD_DIR / "certificates").mkdir(exist_ok=True)
 
 ALLOWED_DOC_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
+(UPLOAD_DIR / "acompanhamentos").mkdir(exist_ok=True)
+ALLOWED_ATTACHMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.webp'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB

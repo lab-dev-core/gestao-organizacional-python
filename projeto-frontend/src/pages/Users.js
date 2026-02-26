@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
-import { Plus, Search, Pencil, Trash2, Users, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, Loader2, Eye, EyeOff, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -46,6 +46,8 @@ const UsersPage = () => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortField, setSortField] = useState('full_name');
+  const [sortDirection, setSortDirection] = useState('asc');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -225,14 +227,50 @@ const UsersPage = () => {
       : <Badge variant="outline" className="border-red-500 text-red-600">{t('inactive')}</Badge>;
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-                         user.email?.toLowerCase().includes(search.toLowerCase());
-    const userRoles = user.roles || (user.role ? [user.role] : []);
-    const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 inline opacity-40" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-3 h-3 ml-1 inline text-primary" />
+      : <ArrowDown className="w-3 h-3 ml-1 inline text-primary" />;
+  };
+
+  const filteredUsers = users
+    .filter(user => {
+      const matchesSearch = user.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+                           user.email?.toLowerCase().includes(search.toLowerCase()) ||
+                           user.cpf?.includes(search);
+      const userRoles = user.roles || (user.role ? [user.role] : []);
+      const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
+      const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+      return matchesSearch && matchesRole && matchesStatus;
+    })
+    .sort((a, b) => {
+      let valA, valB;
+      if (sortField === 'full_name') {
+        valA = a.full_name?.toLowerCase() || '';
+        valB = b.full_name?.toLowerCase() || '';
+      } else if (sortField === 'roles') {
+        const rolesA = a.roles || (a.role ? [a.role] : ['user']);
+        const rolesB = b.roles || (b.role ? [b.role] : ['user']);
+        valA = rolesA[0] || '';
+        valB = rolesB[0] || '';
+      } else {
+        valA = a[sortField]?.toLowerCase() || '';
+        valB = b[sortField]?.toLowerCase() || '';
+      }
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   if (loading) {
     return (
@@ -586,10 +624,30 @@ const UsersPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('user')}</TableHead>
-                  <TableHead>{t('email')}</TableHead>
-                  <TableHead>{t('roles')}</TableHead>
-                  <TableHead>{t('status')}</TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:text-foreground select-none"
+                    onClick={() => handleSort('full_name')}
+                  >
+                    {t('user')}<SortIcon field="full_name" />
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:text-foreground select-none"
+                    onClick={() => handleSort('email')}
+                  >
+                    {t('email')}<SortIcon field="email" />
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:text-foreground select-none"
+                    onClick={() => handleSort('roles')}
+                  >
+                    {t('roles')}<SortIcon field="roles" />
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:text-foreground select-none"
+                    onClick={() => handleSort('status')}
+                  >
+                    {t('status')}<SortIcon field="status" />
+                  </TableHead>
                   <TableHead>{t('location')}</TableHead>
                   <TableHead className="text-right">{t('actions')}</TableHead>
                 </TableRow>

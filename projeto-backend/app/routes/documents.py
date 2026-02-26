@@ -674,3 +674,59 @@ async def delete_document_attachment(
     )
 
     return {"message": "Attachment deleted successfully"}
+
+
+# ==================== PROGRESSO DE LEITURA ====================
+
+@router.post("/{doc_id}/mark-read")
+async def mark_document_read(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Mark a document as read/completed by the current user"""
+    doc = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.document_access.update_one(
+        {"document_id": doc_id, "user_id": current_user["id"]},
+        {"$set": {
+            "document_id": doc_id,
+            "user_id": current_user["id"],
+            "completed": True,
+            "completed_at": now,
+            "last_accessed": now
+        }, "$inc": {"views": 1}},
+        upsert=True
+    )
+    await db.documents.update_one({"id": doc_id}, {"$inc": {"views": 1}})
+    await log_action(current_user["id"], current_user["full_name"], "mark_read", "document", doc_id, {"title": doc.get("title")})
+    return {"message": "Document marked as read", "completed": True}
+
+
+@router.get("/{doc_id}/read-status")
+async def get_document_read_status(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Get read status of a document for the current user"""
+    record = await db.document_access.find_one(
+        {"document_id": doc_id, "user_id": current_user["id"]},
+        {"_id": 0}
+    )
+    return {
+        "document_id": doc_id,
+        "completed": record.get("completed", False) if record else False,
+        "views": record.get("views", 0) if record else 0,
+        "completed_at": record.get("completed_at") if record else None
+    }
+
+
+@router.get("/read-status/batch")
+async def get_documents_read_status_batch(
+    document_ids: str = Query(..., description="Comma-separated document IDs"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get read status for multiple documents"""
+    ids = [id.strip() for id in document_ids.split(",") if id.strip()]
+    records = await db.document_access.find(
+        {"document_id": {"$in": ids}, "user_id": current_user["id"]},
+        {"_id": 0}
+    ).to_list(1000)
+    result = {r["document_id"]: {"completed": r.get("completed", False), "views": r.get("views", 0)} for r in records}
+    return result

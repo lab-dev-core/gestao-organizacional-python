@@ -22,6 +22,7 @@ class FamilyContactModel(BaseModel):
 class UserBase(BaseModel):
     full_name: str
     email: EmailStr
+    username: Optional[str] = None
     birth_date: Optional[str] = None
     address: Optional[AddressModel] = None
     phone: Optional[str] = None
@@ -45,6 +46,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
+    username: Optional[str] = None
     birth_date: Optional[str] = None
     address: Optional[AddressModel] = None
     phone: Optional[str] = None
@@ -70,7 +72,7 @@ class UserResponse(UserBase):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    identifier: str  # Can be email, username, or CPF
     password: str
     tenant_slug: Optional[str] = None
 

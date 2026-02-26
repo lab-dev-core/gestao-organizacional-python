@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
-import { Plus, Search, Pencil, Trash2, ClipboardList, ChevronLeft, GraduationCap, Lock, Calendar, Clock, MapPin, User, MessageSquare, FileDown, Download } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ClipboardList, ChevronLeft, GraduationCap, Lock, Calendar, Clock, MapPin, User, MessageSquare, FileDown, Download, Paperclip, Upload, FileText, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -21,7 +21,8 @@ const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 const AcompanhamentosPage = () => {
   const { getAuthHeaders, isAdmin, isFormador, user } = useAuth();
   const { t } = useLanguage();
-  
+  const attachmentInputRef = useRef(null);
+
   const [acompanhamentos, setAcompanhamentos] = useState([]);
   const [stages, setStages] = useState([]);
   const [stageCounts, setStageCounts] = useState({});
@@ -32,6 +33,7 @@ const AcompanhamentosPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAcomp, setEditingAcomp] = useState(null);
   const [viewingAcomp, setViewingAcomp] = useState(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   
   const [formData, setFormData] = useState({
     user_id: '',
@@ -257,6 +259,73 @@ const AcompanhamentosPage = () => {
            acomp.location?.toLowerCase().includes(search.toLowerCase());
   });
 
+  const handleUploadAttachment = async (file, acompId) => {
+    if (!file) return;
+    const allowedExt = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      toast.error(`Tipo de arquivo não permitido. Use: ${allowedExt.join(', ')}`);
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo: 50MB');
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      const headers = getAuthHeaders();
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/acompanhamentos/${acompId}/attachments`, fd, {
+        headers: { ...headers, 'Content-Type': 'multipart/form-data' }
+      });
+      // Update the viewing acomp with new attachment
+      setViewingAcomp(prev => ({
+        ...prev,
+        attachments: [...(prev.attachments || []), res.data]
+      }));
+      // Update in the list too
+      setAcompanhamentos(prev => prev.map(a => a.id === acompId ? {
+        ...a,
+        attachments: [...(a.attachments || []), res.data]
+      } : a));
+      toast.success('Arquivo anexado com sucesso!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Erro ao anexar arquivo');
+    } finally {
+      setUploadingAttachment(false);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (acompId, fileName) => {
+    try {
+      const headers = getAuthHeaders();
+      await axios.delete(
+        `${process.env.REACT_APP_BACKEND_URL}/api/acompanhamentos/${acompId}/attachments/${encodeURIComponent(fileName)}`,
+        { headers }
+      );
+      setViewingAcomp(prev => ({
+        ...prev,
+        attachments: (prev.attachments || []).filter(a => a.file_name !== fileName)
+      }));
+      setAcompanhamentos(prev => prev.map(a => a.id === acompId ? {
+        ...a,
+        attachments: (a.attachments || []).filter(att => att.file_name !== fileName)
+      } : a));
+      toast.success('Anexo removido');
+    } catch (err) {
+      toast.error('Erro ao remover anexo');
+    }
+  };
+
+  const formatAttachmentSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -465,6 +534,75 @@ const AcompanhamentosPage = () => {
                 </div>
               </div>
               
+              {/* Attachments Section */}
+              {canManage && (
+                <div className="pt-4 border-t space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Paperclip className="w-4 h-4" />
+                      Anexos
+                      {viewingAcomp.attachments?.length > 0 && (
+                        <Badge variant="secondary">{viewingAcomp.attachments.length}</Badge>
+                      )}
+                    </Label>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      disabled={uploadingAttachment}
+                    >
+                      {uploadingAttachment ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      Anexar arquivo
+                    </Button>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,.gif,.webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadAttachment(file, viewingAcomp.id);
+                      }}
+                    />
+                  </div>
+                  {viewingAcomp.attachments?.length > 0 ? (
+                    <div className="space-y-2">
+                      {viewingAcomp.attachments.map((att, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg">
+                          <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{att.file_name}</p>
+                            <p className="text-xs text-muted-foreground">{formatAttachmentSize(att.file_size)}</p>
+                          </div>
+                          <a
+                            href={`${process.env.REACT_APP_BACKEND_URL}${att.file_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:text-primary transition-colors"
+                            title="Baixar"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteAttachment(viewingAcomp.id, att.file_name)}
+                            className="p-1 hover:text-destructive transition-colors"
+                            title="Remover"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Nenhum arquivo anexado ainda</p>
+                  )}
+                </div>
+              )}
+
               {/* Export PDF Button */}
               <div className="pt-4 border-t">
                 <Button

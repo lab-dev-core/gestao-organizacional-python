@@ -9,7 +9,8 @@ import { ScrollArea } from '../ui/scroll-area';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, Circle, Clock,
   MessageSquare, Send, Star, Play, ExternalLink, Loader2,
-  ThumbsUp, CornerDownRight, Trash2, CheckCheck, PlayCircle
+  ThumbsUp, CornerDownRight, Trash2, CheckCheck, PlayCircle,
+  Globe, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -89,7 +90,11 @@ const VideoPlayerView = ({
       const url = video.external_url || '';
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
         const id = url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/)?.[1];
-        return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : url;
+        if (id) {
+          const origin = encodeURIComponent(window.location.origin);
+          return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&origin=${origin}`;
+        }
+        return url;
       }
       if (url.includes('vimeo.com')) {
         const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
@@ -270,7 +275,9 @@ const VideoPlayerView = ({
                   src={getVideoSrc()}
                   className="w-full h-full"
                   allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  title={video.title}
                 />
               ) : (
                 <video
@@ -311,7 +318,7 @@ const VideoPlayerView = ({
             <CardContent className="p-5 space-y-4">
               <div>
                 <h1 className="text-xl font-bold">{video.title}</h1>
-                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
                   {video.category && <Badge variant="secondary">{video.category}</Badge>}
                   {video.duration && (
                     <span className="flex items-center gap-1">
@@ -322,6 +329,15 @@ const VideoPlayerView = ({
                   {video.video_type === 'link' && (
                     <span className="flex items-center gap-1">
                       <ExternalLink className="w-3.5 h-3.5" /> Link externo
+                    </span>
+                  )}
+                  {video.is_public ? (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <Globe className="w-3.5 h-3.5" /> Público
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" /> Acesso restrito
                     </span>
                   )}
                 </div>

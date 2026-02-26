@@ -1,6 +1,14 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from app.models.enums import AcompanhamentoFrequency
+
+
+class AcompanhamentoAttachment(BaseModel):
+    file_name: str
+    file_url: str
+    file_size: int
+    file_type: str
+    uploaded_at: str
 
 
 class AcompanhamentoBase(BaseModel):
@@ -32,5 +40,6 @@ class AcompanhamentoResponse(AcompanhamentoBase):
     formador_id: str
     formador_name: str
     user_name: str
+    attachments: Optional[List[AcompanhamentoAttachment]] = []
     created_at: str
     updated_at: str

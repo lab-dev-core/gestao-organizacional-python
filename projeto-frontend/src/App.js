@@ -26,6 +26,7 @@ import AuditLogsPage from './pages/AuditLogs';
 import ProfilePage from './pages/Profile';
 import TenantsPage from './pages/Tenants';
 import CertificatesPage from './pages/Certificates';
+import FormandoReport from './pages/FormandoReport';
 
 import './App.css';
 
@@ -58,6 +59,7 @@ function App() {
                   <Route path="/certificates" element={<ErrorBoundary><CertificatesPage /></ErrorBoundary>} />
                   <Route path="/profile" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
                   <Route path="/settings" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
+                  <Route path="/relatorio-formando" element={<ErrorBoundary><FormandoReport /></ErrorBoundary>} />
                 </Route>
 
                 {/* Redirects */}

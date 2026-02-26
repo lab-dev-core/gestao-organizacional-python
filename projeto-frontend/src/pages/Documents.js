@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Plus, Search, Pencil, Trash2, FileText, Upload, Download, Eye, Loader2, FileType, ChevronLeft, FolderOpen, GraduationCap, Lock, Layers } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Upload, Download, Eye, Loader2, FileType, ChevronLeft, FolderOpen, GraduationCap, Lock, Layers, CheckCircle2, BookOpen, Users, Globe } from 'lucide-react';
+import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -47,6 +48,10 @@ const DocumentsPage = () => {
   const [viewerDoc, setViewerDoc] = useState(null);
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+
+  // Document read progress tracking
+  const [docReadStatus, setDocReadStatus] = useState({});
+  const [markingRead, setMarkingRead] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -104,6 +109,13 @@ const DocumentsPage = () => {
       setSubcategories([]);
     }
   }, [selectedStage, fetchSubcategories]);
+
+  useEffect(() => {
+    const docsInSubcat = documents.filter(d => d.subcategory_id === selectedSubcategory?.id);
+    if (docsInSubcat.length > 0) {
+      fetchDocReadStatus(docsInSubcat);
+    }
+  }, [documents, selectedSubcategory, fetchDocReadStatus]);
 
   const resetForm = () => {
     setFormData({
@@ -290,6 +302,18 @@ const DocumentsPage = () => {
     }
   };
 
+  const fetchDocReadStatus = useCallback(async (docs) => {
+    if (!docs || docs.length === 0) return;
+    try {
+      const headers = getAuthHeaders();
+      const ids = docs.map(d => d.id).join(',');
+      const res = await axios.get(`${API_URL}/documents/read-status/batch`, { headers, params: { document_ids: ids } });
+      setDocReadStatus(res.data);
+    } catch (err) {
+      console.error('Error fetching read status:', err);
+    }
+  }, [getAuthHeaders]);
+
   const handleViewDocument = async (doc) => {
     setViewerDoc(doc);
     setViewerUrl(null);
@@ -309,6 +333,24 @@ const DocumentsPage = () => {
       setViewerOpen(false);
     } finally {
       setViewerLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async () => {
+    if (!viewerDoc) return;
+    setMarkingRead(true);
+    try {
+      const headers = getAuthHeaders();
+      await axios.post(`${API_URL}/documents/${viewerDoc.id}/mark-read`, {}, { headers });
+      setDocReadStatus(prev => ({
+        ...prev,
+        [viewerDoc.id]: { completed: true, views: (prev[viewerDoc.id]?.views || 0) + 1 }
+      }));
+      toast.success('Documento marcado como lido!');
+    } catch (err) {
+      toast.error(t('errorOccurred'));
+    } finally {
+      setMarkingRead(false);
     }
   };
 
@@ -672,30 +714,59 @@ const DocumentsPage = () => {
     <div className="space-y-6" data-testid="documents-stage-view">
       {/* Document Viewer Modal */}
       <Dialog open={viewerOpen} onOpenChange={(open) => { if (!open) handleCloseViewer(); }}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
-            <DialogTitle className="line-clamp-1">{viewerDoc?.title}</DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              {viewerDoc?.file_name} • {viewerDoc && formatFileSize(viewerDoc.file_size)}
-            </p>
+        <DialogContent className="max-w-5xl h-[92vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-5 pb-2 flex-shrink-0 border-b">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="line-clamp-1">{viewerDoc?.title}</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {viewerDoc?.file_name} • {viewerDoc && formatFileSize(viewerDoc.file_size)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {viewerDoc && docReadStatus[viewerDoc.id]?.completed ? (
+                  <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Lido
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleMarkAsRead}
+                    disabled={markingRead || viewerLoading}
+                    className="border-green-300 text-green-700 hover:bg-green-50 dark:text-green-400"
+                  >
+                    {markingRead ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                    )}
+                    Marcar como lido
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" onClick={() => handleDownload(viewerDoc)}>
+                  <Download className="w-3.5 h-3.5 mr-1" />
+                  Baixar
+                </Button>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden px-6 pb-6">
+          <div className="flex-1 overflow-hidden px-6 pb-6 pt-3">
             {viewerLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
-            ) : viewerUrl && viewerDoc?.file_type === 'pdf' ? (
+            ) : viewerUrl && (viewerDoc?.file_type === 'pdf' || viewerDoc?.file_type === 'txt') ? (
               <iframe
                 src={viewerUrl}
                 className="w-full h-full rounded border"
                 title={viewerDoc?.title}
               />
-            ) : viewerUrl && viewerDoc?.file_type === 'txt' ? (
-              <iframe
-                src={viewerUrl}
-                className="w-full h-full rounded border bg-white"
-                title={viewerDoc?.title}
-              />
+            ) : viewerUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(viewerDoc?.file_type) ? (
+              <div className="flex items-center justify-center h-full bg-muted/30 rounded border">
+                <img src={viewerUrl} alt={viewerDoc?.title} className="max-h-full max-w-full object-contain rounded" />
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
                 <FileText className="w-16 h-16 opacity-40" />
@@ -857,8 +928,8 @@ const DocumentsPage = () => {
                 <TableRow>
                   <TableHead>{t('title')}</TableHead>
                   <TableHead>{t('category')}</TableHead>
-                  <TableHead>{t('views')}</TableHead>
-                  <TableHead>{t('downloads')}</TableHead>
+                  <TableHead>Visibilidade</TableHead>
+                  <TableHead>Progresso</TableHead>
                   <TableHead className="text-right">{t('actions')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -899,16 +970,30 @@ const DocumentsPage = () => {
                         {doc.category && <Badge variant="secondary">{doc.category}</Badge>}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Eye className="w-4 h-4" />
-                          {doc.views}
-                        </div>
+                        {doc.is_public ? (
+                          <div className="flex items-center gap-1 text-green-600 text-xs">
+                            <Globe className="w-3.5 h-3.5" />
+                            Público
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                            <Users className="w-3.5 h-3.5" />
+                            Restrito
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Download className="w-4 h-4" />
-                          {doc.downloads}
-                        </div>
+                        {docReadStatus[doc.id]?.completed ? (
+                          <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Lido
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                            <BookOpen className="w-3.5 h-3.5" />
+                            Não lido
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">

@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
 from typing import List, Optional
 import uuid
+import os
+import shutil
 
 from app.database import db
 from app.models import AcompanhamentoCreate, AcompanhamentoUpdate, AcompanhamentoResponse
@@ -10,6 +12,7 @@ from app.models.enums import UserRole, UserStatus
 from app.utils.security import get_current_user, require_formador, get_tenant_filter
 from app.utils.audit import log_action
 from app.services.pdf import generate_acompanhamento_pdf
+from app.config import UPLOAD_DIR, ALLOWED_ATTACHMENT_EXTENSIONS
 
 router = APIRouter()
 
@@ -256,3 +259,89 @@ async def export_acompanhamento_pdf(acomp_id: str, current_user: dict = Depends(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.post("/{acomp_id}/attachments")
+async def upload_acompanhamento_attachment(
+    acomp_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_formador)
+):
+    """Upload an attachment to an acompanhamento"""
+    tenant_filter = get_tenant_filter(current_user)
+    acomp = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id})
+    if not acomp:
+        raise HTTPException(status_code=404, detail="Acompanhamento not found")
+
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        if acomp["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_ATTACHMENT_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_ATTACHMENT_EXTENSIONS)}"
+        )
+
+    file_id = str(uuid.uuid4())
+    save_path = UPLOAD_DIR / "acompanhamentos" / f"{file_id}{ext}"
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    file_size = save_path.stat().st_size
+    now = datetime.now(timezone.utc).isoformat()
+
+    attachment = {
+        "file_name": file.filename,
+        "file_url": f"/uploads/acompanhamentos/{file_id}{ext}",
+        "file_size": file_size,
+        "file_type": ext.lstrip("."),
+        "uploaded_at": now
+    }
+
+    await db.acompanhamentos.update_one(
+        {"id": acomp_id},
+        {"$push": {"attachments": attachment}, "$set": {"updated_at": now}}
+    )
+
+    return attachment
+
+
+@router.delete("/{acomp_id}/attachments/{file_name}")
+async def delete_acompanhamento_attachment(
+    acomp_id: str,
+    file_name: str,
+    current_user: dict = Depends(require_formador)
+):
+    """Remove an attachment from an acompanhamento"""
+    tenant_filter = get_tenant_filter(current_user)
+    acomp = await db.acompanhamentos.find_one({**tenant_filter, "id": acomp_id})
+    if not acomp:
+        raise HTTPException(status_code=404, detail="Acompanhamento not found")
+
+    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        if acomp["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.acompanhamentos.update_one(
+        {"id": acomp_id},
+        {"$pull": {"attachments": {"file_name": file_name}}, "$set": {"updated_at": now}}
+    )
+
+    return {"message": "Attachment removed"}
+
+
+@router.get("/attachments/{file_id}")
+async def serve_acompanhamento_attachment(file_id: str, current_user: dict = Depends(get_current_user)):
+    """Serve an acompanhamento attachment file"""
+    import mimetypes
+    from fastapi.responses import FileResponse
+    # file_id includes extension
+    file_path = UPLOAD_DIR / "acompanhamentos" / file_id
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    mime_type, _ = mimetypes.guess_type(str(file_path))
+    return FileResponse(str(file_path), media_type=mime_type or "application/octet-stream")

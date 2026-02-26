@@ -38,6 +38,11 @@ async def register(user_data: UserCreate, tenant_slug: str = None):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered in this organization")
 
+    if user_data.username:
+        existing_username = await db.users.find_one({"username": user_data.username, "tenant_id": tenant["id"]})
+        if existing_username:
+            raise HTTPException(status_code=400, detail="Username already taken in this organization")
+
     if user_data.cpf:
         existing_cpf = await db.users.find_one({"cpf": user_data.cpf, "tenant_id": tenant["id"]})
         if existing_cpf:
@@ -75,7 +80,8 @@ async def register(user_data: UserCreate, tenant_slug: str = None):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(login_data: LoginRequest):
-    query = {"email": login_data.email}
+    identifier = login_data.identifier.strip()
+    tenant_filter = {}
 
     if login_data.tenant_slug:
         tenant = await db.tenants.find_one({"slug": login_data.tenant_slug})
@@ -85,13 +91,27 @@ async def login(login_data: LoginRequest):
         if tenant.get("status") != TenantStatus.ACTIVE:
             raise HTTPException(status_code=403, detail="Organization is inactive")
 
-        query["tenant_id"] = tenant["id"]
+        tenant_filter["tenant_id"] = tenant["id"]
 
-    user = await db.users.find_one(query, {"_id": 0})
+    # Try to find user by email, username, or CPF
+    user = None
+    # Check if identifier looks like an email
+    if "@" in identifier:
+        user = await db.users.find_one({**tenant_filter, "email": identifier}, {"_id": 0})
+    else:
+        # Try username first, then CPF
+        user = await db.users.find_one({**tenant_filter, "username": identifier}, {"_id": 0})
+        if not user:
+            # Normalize CPF (remove dots and dashes)
+            cpf_normalized = identifier.replace(".", "").replace("-", "").replace(" ", "")
+            user = await db.users.find_one({**tenant_filter, "cpf": cpf_normalized}, {"_id": 0})
+            if not user:
+                # Also try with dots/dashes as stored
+                user = await db.users.find_one({**tenant_filter, "cpf": identifier}, {"_id": 0})
 
     if not user and not login_data.tenant_slug:
         user = await db.users.find_one({
-            "email": login_data.email,
+            "email": identifier,
             "$or": [
                 {"roles": UserRole.SUPERADMIN},
                 {"role": UserRole.SUPERADMIN}

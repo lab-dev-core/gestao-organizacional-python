@@ -42,6 +42,12 @@ const DocumentsPage = () => {
   const [subcategoryFormData, setSubcategoryFormData] = useState({ name: '', description: '' });
   const [savingSubcategory, setSavingSubcategory] = useState(false);
 
+  // Document viewer states
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerDoc, setViewerDoc] = useState(null);
+  const [viewerUrl, setViewerUrl] = useState(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -282,6 +288,37 @@ const DocumentsPage = () => {
     } catch (error) {
       toast.error(t('errorOccurred'));
     }
+  };
+
+  const handleViewDocument = async (doc) => {
+    setViewerDoc(doc);
+    setViewerUrl(null);
+    setViewerOpen(true);
+    setViewerLoading(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await axios.get(`${API_URL}/documents/${doc.id}/download`, {
+        headers,
+        responseType: 'blob'
+      });
+      const mimeType = response.headers['content-type'] || 'application/octet-stream';
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+      setViewerUrl(url);
+    } catch (error) {
+      toast.error(t('errorOccurred'));
+      setViewerOpen(false);
+    } finally {
+      setViewerLoading(false);
+    }
+  };
+
+  const handleCloseViewer = () => {
+    setViewerOpen(false);
+    if (viewerUrl) {
+      window.URL.revokeObjectURL(viewerUrl);
+      setViewerUrl(null);
+    }
+    setViewerDoc(null);
   };
 
   const getFileIcon = (type) => {
@@ -633,6 +670,48 @@ const DocumentsPage = () => {
   // ─── Screen 3: Documents List (inside a subcategory) ─────────────────────────
   return (
     <div className="space-y-6" data-testid="documents-stage-view">
+      {/* Document Viewer Modal */}
+      <Dialog open={viewerOpen} onOpenChange={(open) => { if (!open) handleCloseViewer(); }}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+            <DialogTitle className="line-clamp-1">{viewerDoc?.title}</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {viewerDoc?.file_name} • {viewerDoc && formatFileSize(viewerDoc.file_size)}
+            </p>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden px-6 pb-6">
+            {viewerLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : viewerUrl && viewerDoc?.file_type === 'pdf' ? (
+              <iframe
+                src={viewerUrl}
+                className="w-full h-full rounded border"
+                title={viewerDoc?.title}
+              />
+            ) : viewerUrl && viewerDoc?.file_type === 'txt' ? (
+              <iframe
+                src={viewerUrl}
+                className="w-full h-full rounded border bg-white"
+                title={viewerDoc?.title}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                <FileText className="w-16 h-16 opacity-40" />
+                <p className="text-center">
+                  Pré-visualização não disponível para arquivos <strong>{viewerDoc?.file_type?.toUpperCase()}</strong>
+                </p>
+                <Button onClick={() => handleDownload(viewerDoc)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Baixar arquivo
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header with Back Button */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -836,7 +915,17 @@ const DocumentsPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleViewDocument(doc)}
+                            title="Visualizar"
+                            data-testid={`view-doc-${doc.id}`}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleDownload(doc)}
+                            title="Baixar"
                             data-testid={`download-doc-${doc.id}`}
                           >
                             <Download className="w-4 h-4" />

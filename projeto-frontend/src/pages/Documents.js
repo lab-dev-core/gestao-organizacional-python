@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Plus, Search, Pencil, Trash2, FileText, Upload, Download, Eye, Loader2, FileType, ChevronLeft, FolderOpen, GraduationCap, Lock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Upload, Download, Eye, Loader2, FileType, ChevronLeft, FolderOpen, GraduationCap, Lock, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -23,17 +23,25 @@ const DocumentsPage = () => {
   const { getAuthHeaders, isAdmin, isFormador, user } = useAuth();
   const { t } = useLanguage();
   const fileInputRef = useRef(null);
-  
+
   const [documents, setDocuments] = useState([]);
   const [stages, setStages] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
   const [selectedStage, setSelectedStage] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
-  
+
+  // Subcategory dialog states
+  const [subcategoryDialogOpen, setSubcategoryDialogOpen] = useState(false);
+  const [editingSubcategory, setEditingSubcategory] = useState(null);
+  const [subcategoryFormData, setSubcategoryFormData] = useState({ name: '', description: '' });
+  const [savingSubcategory, setSavingSubcategory] = useState(false);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -44,7 +52,6 @@ const DocumentsPage = () => {
 
   const canManage = isAdmin || isFormador;
 
-  // Check if user has access to a stage
   const hasAccessToStage = (stageId) => {
     if (isAdmin || isFormador) return true;
     return user?.formative_stage_id === stageId;
@@ -57,7 +64,7 @@ const DocumentsPage = () => {
         axios.get(`${API_URL}/documents`, { headers }),
         axios.get(`${API_URL}/formative-stages`, { headers })
       ]);
-      
+
       setDocuments(docsRes.data);
       setStages(stagesRes.data.sort((a, b) => a.order - b.order));
     } catch (error) {
@@ -67,9 +74,30 @@ const DocumentsPage = () => {
     }
   }, [getAuthHeaders]);
 
+  const fetchSubcategories = useCallback(async (stageId) => {
+    try {
+      const headers = getAuthHeaders();
+      const res = await axios.get(`${API_URL}/content-subcategories`, {
+        headers,
+        params: { formative_stage_id: stageId }
+      });
+      setSubcategories(res.data);
+    } catch (error) {
+      console.error('Error fetching subcategories:', error);
+    }
+  }, [getAuthHeaders]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (selectedStage) {
+      fetchSubcategories(selectedStage.id);
+    } else {
+      setSubcategories([]);
+    }
+  }, [selectedStage, fetchSubcategories]);
 
   const resetForm = () => {
     setFormData({
@@ -100,6 +128,54 @@ const DocumentsPage = () => {
     setDialogOpen(true);
   };
 
+  const handleOpenSubcategoryDialog = (sub = null) => {
+    if (sub) {
+      setEditingSubcategory(sub);
+      setSubcategoryFormData({ name: sub.name, description: sub.description || '' });
+    } else {
+      setEditingSubcategory(null);
+      setSubcategoryFormData({ name: '', description: '' });
+    }
+    setSubcategoryDialogOpen(true);
+  };
+
+  const handleSaveSubcategory = async (e) => {
+    e.preventDefault();
+    setSavingSubcategory(true);
+    try {
+      const headers = getAuthHeaders();
+      if (editingSubcategory) {
+        await axios.put(`${API_URL}/content-subcategories/${editingSubcategory.id}`, subcategoryFormData, { headers });
+        toast.success('Subcategoria atualizada');
+      } else {
+        await axios.post(`${API_URL}/content-subcategories`, {
+          ...subcategoryFormData,
+          formative_stage_id: selectedStage.id,
+          content_type: 'document',
+          order: subcategories.length
+        }, { headers });
+        toast.success('Subcategoria criada');
+      }
+      setSubcategoryDialogOpen(false);
+      fetchSubcategories(selectedStage.id);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || t('errorOccurred'));
+    } finally {
+      setSavingSubcategory(false);
+    }
+  };
+
+  const handleDeleteSubcategory = async (subId) => {
+    try {
+      const headers = getAuthHeaders();
+      await axios.delete(`${API_URL}/content-subcategories/${subId}`, { headers });
+      toast.success('Subcategoria removida');
+      fetchSubcategories(selectedStage.id);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || t('errorOccurred'));
+    }
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -119,7 +195,7 @@ const DocumentsPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!editingDoc && !selectedFile) {
       toast.error(t('selectFile'));
       return;
@@ -129,7 +205,6 @@ const DocumentsPage = () => {
     try {
       const headers = getAuthHeaders();
 
-      // Build permissions based on formative stage
       const permissions = {
         location_ids: [],
         user_ids: [],
@@ -144,7 +219,8 @@ const DocumentsPage = () => {
           category: formData.category,
           is_public: formData.is_public,
           permissions: permissions,
-          formative_stage_id: formData.formative_stage_id
+          formative_stage_id: formData.formative_stage_id,
+          subcategory_id: selectedSubcategory?.id
         }, { headers });
         toast.success(t('documentUpdated'));
       } else {
@@ -156,13 +232,16 @@ const DocumentsPage = () => {
         fd.append('is_public', formData.is_public);
         fd.append('permissions', JSON.stringify(permissions));
         fd.append('formative_stage_id', formData.formative_stage_id);
+        if (selectedSubcategory?.id) {
+          fd.append('subcategory_id', selectedSubcategory.id);
+        }
 
         await axios.post(`${API_URL}/documents`, fd, {
           headers: { ...headers, 'Content-Type': 'multipart/form-data' }
         });
         toast.success(t('documentCreated'));
       }
-      
+
       setDialogOpen(false);
       resetForm();
       fetchData();
@@ -192,7 +271,7 @@ const DocumentsPage = () => {
         headers,
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -225,28 +304,21 @@ const DocumentsPage = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  // Get document count for each stage
   const getStageDocCount = (stageId) => {
     return documents.filter(doc => doc.formative_stage_id === stageId).length;
   };
 
-  // Get documents without stage (general/public)
   const getGeneralDocs = () => {
     return documents.filter(doc => !doc.formative_stage_id || doc.is_public);
   };
 
-  // Get documents for selected stage
-  const getStageDocuments = () => {
-    if (!selectedStage) return [];
-    return documents.filter(doc => 
-      doc.formative_stage_id === selectedStage.id || 
-      (doc.is_public && !doc.formative_stage_id)
+  const filteredDocs = documents.filter(doc => {
+    if (!selectedSubcategory) return false;
+    if (doc.subcategory_id !== selectedSubcategory.id) return false;
+    return (
+      doc.title?.toLowerCase().includes(search.toLowerCase()) ||
+      doc.description?.toLowerCase().includes(search.toLowerCase())
     );
-  };
-
-  const filteredDocs = (selectedStage ? getStageDocuments() : getGeneralDocs()).filter(doc => {
-    return doc.title?.toLowerCase().includes(search.toLowerCase()) ||
-           doc.description?.toLowerCase().includes(search.toLowerCase());
   });
 
   if (loading) {
@@ -257,11 +329,10 @@ const DocumentsPage = () => {
     );
   }
 
-  // Stage Selection View
+  // ─── Screen 1: Stage Selection ───────────────────────────────────────────────
   if (!selectedStage) {
     return (
       <div className="space-y-6" data-testid="documents-page">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('documents')}</h1>
           <p className="text-muted-foreground mt-1">
@@ -269,18 +340,17 @@ const DocumentsPage = () => {
           </p>
         </div>
 
-        {/* Stages Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {stages.map((stage, index) => {
+          {stages.map((stage) => {
             const hasAccess = hasAccessToStage(stage.id);
             const docCount = getStageDocCount(stage.id);
-            
+
             return (
-              <Card 
+              <Card
                 key={stage.id}
                 className={`border-0 shadow-md overflow-hidden transition-all duration-200 ${
-                  hasAccess 
-                    ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1' 
+                  hasAccess
+                    ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1'
                     : 'opacity-60 cursor-not-allowed'
                 }`}
                 onClick={() => hasAccess && setSelectedStage(stage)}
@@ -288,11 +358,9 @@ const DocumentsPage = () => {
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between">
-                    <div className={`p-4 rounded-xl ${
-                      hasAccess ? 'bg-primary/10' : 'bg-muted'
-                    }`}>
+                    <div className={`p-4 rounded-xl ${hasAccess ? 'bg-primary/10' : 'bg-muted'}`}>
                       {hasAccess ? (
-                        <FolderOpen className={`w-8 h-8 ${hasAccess ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <FolderOpen className="w-8 h-8 text-primary" />
                       ) : (
                         <Lock className="w-8 h-8 text-muted-foreground" />
                       )}
@@ -301,7 +369,7 @@ const DocumentsPage = () => {
                       {stage.order}
                     </Badge>
                   </div>
-                  
+
                   <div className="mt-4">
                     <h3 className="font-semibold text-lg">{stage.name}</h3>
                     {stage.description && (
@@ -310,7 +378,7 @@ const DocumentsPage = () => {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="mt-4 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <FileText className="w-4 h-4" />
@@ -322,7 +390,7 @@ const DocumentsPage = () => {
                       </Badge>
                     )}
                   </div>
-                  
+
                   {!hasAccess && (
                     <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                       <Lock className="w-3 h-3" />
@@ -333,7 +401,7 @@ const DocumentsPage = () => {
               </Card>
             );
           })}
-          
+
           {stages.length === 0 && (
             <Card className="col-span-full border-0 shadow-md">
               <CardContent className="py-16 text-center text-muted-foreground">
@@ -345,7 +413,6 @@ const DocumentsPage = () => {
           )}
         </div>
 
-        {/* General Documents Section */}
         {getGeneralDocs().length > 0 && (
           <div className="mt-8">
             <h2 className="text-xl font-semibold mb-4">Documentos Gerais</h2>
@@ -385,11 +452,7 @@ const DocumentsPage = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDownload(doc)}
-                            >
+                            <Button variant="ghost" size="icon" onClick={() => handleDownload(doc)}>
                               <Download className="w-4 h-4" />
                             </Button>
                           </TableCell>
@@ -406,7 +469,168 @@ const DocumentsPage = () => {
     );
   }
 
-  // Documents List View (inside a stage)
+  // ─── Screen 2: Subcategory Selection ─────────────────────────────────────────
+  if (!selectedSubcategory) {
+    return (
+      <div className="space-y-6" data-testid="documents-subcategory-view">
+        {/* Subcategory Dialog */}
+        <Dialog open={subcategoryDialogOpen} onOpenChange={setSubcategoryDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {editingSubcategory ? 'Editar Subcategoria' : 'Nova Subcategoria'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSaveSubcategory} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome *</Label>
+                <Input
+                  value={subcategoryFormData.name}
+                  onChange={(e) => setSubcategoryFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Módulo 1, Sessão A, Introdução..."
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  value={subcategoryFormData.description}
+                  onChange={(e) => setSubcategoryFormData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={3}
+                  placeholder="Descrição opcional da subcategoria"
+                />
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">{t('cancel')}</Button>
+                </DialogClose>
+                <Button type="submit" disabled={savingSubcategory}>
+                  {savingSubcategory && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {t('save')}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSelectedStage(null)}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{selectedStage.order}</Badge>
+                <h1 className="text-2xl font-bold tracking-tight">{selectedStage.name}</h1>
+              </div>
+              <p className="text-muted-foreground mt-1">
+                Selecione uma subcategoria para acessar os documentos
+              </p>
+            </div>
+          </div>
+
+          {canManage && (
+            <Button onClick={() => handleOpenSubcategoryDialog()} data-testid="new-subcategory-btn">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Subcategoria
+            </Button>
+          )}
+        </div>
+
+        {/* Subcategories Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {subcategories.map((sub) => (
+            <Card
+              key={sub.id}
+              className="border-0 shadow-md overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
+              onClick={() => setSelectedSubcategory(sub)}
+              data-testid={`subcategory-card-${sub.id}`}
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="p-4 rounded-xl bg-primary/10">
+                    <Layers className="w-8 h-8 text-primary" />
+                  </div>
+                  <Badge variant="secondary" className="text-sm px-3 py-1">
+                    {sub.document_count} {sub.document_count === 1 ? 'doc' : 'docs'}
+                  </Badge>
+                </div>
+
+                <div className="mt-4">
+                  <h3 className="font-semibold text-lg">{sub.name}</h3>
+                  {sub.description && (
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {sub.description}
+                    </p>
+                  )}
+                </div>
+
+                {canManage && (
+                  <div className="flex items-center gap-1 mt-4 pt-4 border-t" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenSubcategoryDialog(sub)}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      {t('edit')}
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-destructive">
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          {t('delete')}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t('confirmDeleteMessage')} {t('actionCannotBeUndone')}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteSubcategory(sub.id)}>
+                            {t('delete')}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+
+          {subcategories.length === 0 && (
+            <Card className="col-span-full border-0 shadow-md">
+              <CardContent className="py-16 text-center text-muted-foreground">
+                <Layers className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">Nenhuma subcategoria cadastrada</p>
+                {canManage && (
+                  <Button
+                    variant="link"
+                    onClick={() => handleOpenSubcategoryDialog()}
+                    className="mt-2"
+                  >
+                    Criar primeira subcategoria
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Screen 3: Documents List (inside a subcategory) ─────────────────────────
   return (
     <div className="space-y-6" data-testid="documents-stage-view">
       {/* Header with Back Button */}
@@ -415,23 +639,24 @@ const DocumentsPage = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setSelectedStage(null)}
+            onClick={() => setSelectedSubcategory(null)}
             data-testid="back-to-stages-btn"
           >
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{selectedStage.order}</Badge>
-              <h1 className="text-2xl font-bold tracking-tight">{selectedStage.name}</h1>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <span>{selectedStage.name}</span>
+              <span>/</span>
+              <span>{selectedSubcategory.name}</span>
             </div>
+            <h1 className="text-2xl font-bold tracking-tight">{selectedSubcategory.name}</h1>
             <p className="text-muted-foreground mt-1">
               {filteredDocs.length} {t('documents').toLowerCase()}
-              {selectedStage.estimated_duration && ` • ${selectedStage.estimated_duration}`}
             </p>
           </div>
         </div>
-        
+
         {canManage && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -449,7 +674,7 @@ const DocumentsPage = () => {
                   {!editingDoc && (
                     <div className="space-y-2">
                       <Label>{t('selectFile')} *</Label>
-                      <div 
+                      <div
                         className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
                         onClick={() => fileInputRef.current?.click()}
                       >
@@ -505,10 +730,10 @@ const DocumentsPage = () => {
                   <div className="p-3 bg-muted/50 rounded-lg">
                     <p className="text-sm font-medium flex items-center gap-2">
                       <GraduationCap className="w-4 h-4" />
-                      Etapa: {selectedStage.name}
+                      {selectedStage.name} / {selectedSubcategory.name}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Este documento será acessível apenas para usuários desta etapa formativa
+                      Este documento será associado a esta subcategoria
                     </p>
                   </div>
 
@@ -563,7 +788,7 @@ const DocumentsPage = () => {
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>Nenhum documento nesta etapa</p>
+                      <p>Nenhum documento nesta subcategoria</p>
                       {canManage && (
                         <Button
                           variant="link"
@@ -585,7 +810,9 @@ const DocumentsPage = () => {
                           </div>
                           <div>
                             <p className="font-medium">{doc.title}</p>
-                            <p className="text-xs text-muted-foreground">{doc.file_name} • {formatFileSize(doc.file_size)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.file_name} • {formatFileSize(doc.file_size)}
+                            </p>
                           </div>
                         </div>
                       </TableCell>

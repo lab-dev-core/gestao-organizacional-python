@@ -110,6 +110,18 @@ const DocumentsPage = () => {
     }
   }, [selectedStage, fetchSubcategories]);
 
+  const fetchDocReadStatus = useCallback(async (docs) => {
+    if (!docs || docs.length === 0) return;
+    try {
+      const headers = getAuthHeaders();
+      const ids = docs.map(d => d.id).join(',');
+      const res = await axios.get(`${API_URL}/documents/read-status/batch`, { headers, params: { document_ids: ids } });
+      setDocReadStatus(res.data);
+    } catch (err) {
+      console.error('Error fetching read status:', err);
+    }
+  }, [getAuthHeaders]);
+
   useEffect(() => {
     const docsInSubcat = documents.filter(d => d.subcategory_id === selectedSubcategory?.id);
     if (docsInSubcat.length > 0) {
@@ -301,18 +313,6 @@ const DocumentsPage = () => {
       toast.error(t('errorOccurred'));
     }
   };
-
-  const fetchDocReadStatus = useCallback(async (docs) => {
-    if (!docs || docs.length === 0) return;
-    try {
-      const headers = getAuthHeaders();
-      const ids = docs.map(d => d.id).join(',');
-      const res = await axios.get(`${API_URL}/documents/read-status/batch`, { headers, params: { document_ids: ids } });
-      setDocReadStatus(res.data);
-    } catch (err) {
-      console.error('Error fetching read status:', err);
-    }
-  }, [getAuthHeaders]);
 
   const handleViewDocument = async (doc) => {
     setViewerDoc(doc);

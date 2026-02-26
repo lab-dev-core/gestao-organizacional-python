@@ -95,7 +95,7 @@ const VideosPage = () => {
       const headers = getAuthHeaders();
       const res = await axios.get(`${API_URL}/content-subcategories`, {
         headers,
-        params: { formative_stage_id: stageId }
+        params: { formative_stage_id: stageId, content_type: 'video' }
       });
       setSubcategories(res.data);
     } catch (error) {

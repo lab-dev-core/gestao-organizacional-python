@@ -79,7 +79,7 @@ const DocumentsPage = () => {
       const headers = getAuthHeaders();
       const res = await axios.get(`${API_URL}/content-subcategories`, {
         headers,
-        params: { formative_stage_id: stageId }
+        params: { formative_stage_id: stageId, content_type: 'document' }
       });
       setSubcategories(res.data);
     } catch (error) {

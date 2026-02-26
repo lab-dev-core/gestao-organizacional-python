@@ -637,6 +637,7 @@ const VideosPage = () => {
       {/* Video Player Modal */}
       <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>
         <DialogContent className="max-w-4xl p-0">
+          <DialogTitle className="sr-only">{currentVideo?.title || 'Reprodutor de vídeo'}</DialogTitle>
           <div className="aspect-video bg-black rounded-t-lg overflow-hidden">
             {currentVideo && (
               isEmbeddedVideo(currentVideo) ? (

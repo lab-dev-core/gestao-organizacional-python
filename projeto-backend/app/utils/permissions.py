@@ -7,7 +7,15 @@ def check_permission(user: dict, permissions: Optional[dict]) -> bool:
     if not permissions:
         return True
 
-    if user.get("role") == UserRole.ADMIN:
+    # Support both legacy 'role' (str) and current 'roles' (list) fields
+    roles = user.get("roles", [])
+    if not isinstance(roles, list):
+        roles = [roles] if roles else []
+    legacy_role = user.get("role")
+    if legacy_role and legacy_role not in roles:
+        roles = roles + [legacy_role]
+
+    if UserRole.ADMIN in roles or UserRole.SUPERADMIN in roles:
         return True
 
     user_id = user.get("id")

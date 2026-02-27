@@ -40,16 +40,15 @@ async def list_acompanhamentos(
     tenant_filter = get_tenant_filter(current_user)
     query = {**tenant_filter}
 
-    if current_user.get("role") == UserRole.ADMIN:
-        pass  # Admin sees all within tenant (filter already applied)
-    elif current_user.get("role") == UserRole.SUPERADMIN:
-        pass  # Superadmin sees all (no tenant filter)
-    elif current_user.get("role") == UserRole.FORMADOR:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN in roles or UserRole.SUPERADMIN in roles:
+        pass  # Admin/Superadmin sees all within tenant (filter already applied)
+    elif UserRole.FORMADOR in roles:
         query["formador_id"] = current_user["id"]
     else:
         query["user_id"] = current_user["id"]
 
-    if user_id and current_user.get("role") in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]:
+    if user_id and any(r in roles for r in [UserRole.ADMIN, UserRole.FORMADOR, UserRole.SUPERADMIN]):
         query["user_id"] = user_id
 
     if formative_stage_id:
@@ -66,9 +65,10 @@ async def get_acompanhamentos_count_by_stage(current_user: dict = Depends(get_cu
     tenant_filter = get_tenant_filter(current_user)
     query = {**tenant_filter}
 
-    if current_user.get("role") == UserRole.FORMADOR:
+    roles = current_user.get("roles", [])
+    if UserRole.FORMADOR in roles:
         query["formador_id"] = current_user["id"]
-    elif current_user.get("role") == UserRole.USER:
+    elif UserRole.USER in roles and UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         query["user_id"] = current_user["id"]
 
     acompanhamentos = await db.acompanhamentos.find(query, {"formative_stage_id": 1}).to_list(10000)
@@ -94,15 +94,16 @@ async def export_acompanhamentos_pdf(
     tenant_filter = get_tenant_filter(current_user)
     query = {**tenant_filter}
 
-    if current_user.get("role") == UserRole.USER:
-        query["user_id"] = current_user["id"]
-    elif current_user.get("role") == UserRole.FORMADOR:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN in roles or UserRole.SUPERADMIN in roles:
+        if user_id:
+            query["user_id"] = user_id
+    elif UserRole.FORMADOR in roles:
         query["formador_id"] = current_user["id"]
         if user_id:
             query["user_id"] = user_id
     else:
-        if user_id:
-            query["user_id"] = user_id
+        query["user_id"] = current_user["id"]
 
     if formative_stage_id:
         query["formative_stage_id"] = formative_stage_id
@@ -143,11 +144,12 @@ async def get_acompanhamento(acomp_id: str, current_user: dict = Depends(get_cur
     if not acomp:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") == UserRole.USER:
-        if acomp["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Access denied")
-    elif current_user.get("role") == UserRole.FORMADOR:
+    roles = current_user.get("roles", [])
+    if UserRole.FORMADOR in roles and UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if acomp["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif UserRole.USER in roles and UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles and UserRole.FORMADOR not in roles:
+        if acomp["user_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
 
     await log_action(
@@ -170,7 +172,8 @@ async def create_acompanhamento(
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if target_user.get("formador_id") != current_user["id"]:
             raise HTTPException(status_code=403, detail="You can only create follow-ups for your assigned users")
 
@@ -204,7 +207,8 @@ async def update_acompanhamento(
     if not existing:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if existing["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="You can only edit your own follow-ups")
 
@@ -225,7 +229,8 @@ async def delete_acompanhamento(acomp_id: str, current_user: dict = Depends(requ
     if not existing:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if existing["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="You can only delete your own follow-ups")
 
@@ -243,11 +248,12 @@ async def export_acompanhamento_pdf(acomp_id: str, current_user: dict = Depends(
     if not acomp:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") == UserRole.USER:
-        if acomp["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Access denied")
-    elif current_user.get("role") == UserRole.FORMADOR:
+    roles = current_user.get("roles", [])
+    if UserRole.FORMADOR in roles and UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if acomp["formador_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif UserRole.USER in roles and UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles and UserRole.FORMADOR not in roles:
+        if acomp["user_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
 
     pdf_buffer = generate_acompanhamento_pdf([acomp], f"Acompanhamento - {acomp['user_name']}")
@@ -273,7 +279,8 @@ async def upload_acompanhamento_attachment(
     if not acomp:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if acomp["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
 
@@ -320,7 +327,8 @@ async def delete_acompanhamento_attachment(
     if not acomp:
         raise HTTPException(status_code=404, detail="Acompanhamento not found")
 
-    if current_user.get("role") not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+    roles = current_user.get("roles", [])
+    if UserRole.ADMIN not in roles and UserRole.SUPERADMIN not in roles:
         if acomp["formador_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
 

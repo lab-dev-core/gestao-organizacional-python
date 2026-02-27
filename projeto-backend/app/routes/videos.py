@@ -99,6 +99,9 @@ async def list_videos(
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    tenant_id = current_user.get("tenant_id")
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if search:
         query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
@@ -237,6 +240,7 @@ async def create_video(
 
     video_dict = {
         "id": video_id,
+        "tenant_id": current_user.get("tenant_id"),
         "title": title,
         "description": description,
         "category": category,

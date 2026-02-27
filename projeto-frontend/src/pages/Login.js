@@ -207,13 +207,7 @@ const Login = () => {
     setResetLoading(true);
     try {
       const params = tenantSlug ? `?tenant_slug=${tenantSlug}` : '';
-      const res = await axios.post(`${API_URL}/auth/password-reset/request${params}`, { email: resetEmail });
-
-      // If SMTP is not configured the backend returns the reset token directly
-      if (res.data.reset_token) {
-        navigate(`/reset-password?token=${res.data.reset_token}`);
-        return;
-      }
+      await axios.post(`${API_URL}/auth/password-reset/request${params}`, { email: resetEmail });
       setResetSent(true);
     } catch (err) {
       toast.error('Erro ao solicitar recuperação de senha');

@@ -215,11 +215,9 @@ async def request_password_reset(reset_data: PasswordResetRequest, tenant_slug: 
 
     await log_action(user["id"], user["full_name"], "password_reset_request", "user", user["id"])
 
-    # Return token when SMTP is not configured so the frontend can redirect directly
     return {
         "message": "If the email exists, a reset link will be sent",
-        "email_sent": email_sent,
-        "reset_token": token if not email_sent else None
+        "email_sent": email_sent
     }
 
 

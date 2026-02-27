@@ -15,7 +15,7 @@ def check_permission(user: dict, permissions: Optional[dict]) -> bool:
     if legacy_role and legacy_role not in roles:
         roles = roles + [legacy_role]
 
-    if UserRole.ADMIN in roles or UserRole.SUPERADMIN in roles:
+    if UserRole.ADMIN in roles or UserRole.SUPERADMIN in roles or UserRole.FORMADOR in roles:
         return True
 
     user_id = user.get("id")

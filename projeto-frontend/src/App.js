@@ -12,6 +12,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import UsersPage from './pages/Users';
 import DocumentsPage from './pages/Documents';
@@ -41,6 +42,7 @@ function App() {
                 {/* Public Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
                 {/* Protected Routes */}
                 <Route element={<DashboardLayout />}>

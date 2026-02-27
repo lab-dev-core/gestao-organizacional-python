@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone
+from pydantic import BaseModel
 import uuid
+import httpx
 
 from app.database import db
+from app.config import GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_TENANT_ID_SSO
 from app.models import (
     UserCreate, UserResponse, LoginRequest, TokenResponse,
     RefreshTokenRequest, PasswordResetRequest, PasswordResetConfirm,
@@ -208,11 +211,16 @@ async def request_password_reset(reset_data: PasswordResetRequest, tenant_slug: 
         upsert=True
     )
 
-    await send_password_reset_email(user["email"], token, user["full_name"])
+    email_sent = await send_password_reset_email(user["email"], token, user["full_name"])
 
     await log_action(user["id"], user["full_name"], "password_reset_request", "user", user["id"])
 
-    return {"message": "If the email exists, a reset link will be sent"}
+    # Return token when SMTP is not configured so the frontend can redirect directly
+    return {
+        "message": "If the email exists, a reset link will be sent",
+        "email_sent": email_sent,
+        "reset_token": token if not email_sent else None
+    }
 
 
 @router.post("/password-reset/confirm")
@@ -252,3 +260,91 @@ async def confirm_password_reset(reset_data: PasswordResetConfirm):
     await log_action(user["id"], user["full_name"], "password_reset_confirm", "user", user["id"])
 
     return {"message": "Password reset successful"}
+
+
+# ─── Social Login (Google / Microsoft SSO) ───────────────────────────────────
+
+class SocialLoginRequest(BaseModel):
+    provider: str          # "google" | "microsoft"
+    token: str             # ID token from provider
+    tenant_slug: str | None = None
+
+
+@router.post("/social-login", response_model=TokenResponse)
+async def social_login(data: SocialLoginRequest):
+    """Verify a social provider ID token and return app JWT tokens."""
+    email = None
+    full_name = None
+
+    if data.provider == "google":
+        if not GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=501, detail="Google SSO not configured on this server")
+        # Verify with Google tokeninfo endpoint
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": data.token}
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid Google token")
+        info = resp.json()
+        if info.get("aud") != GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=401, detail="Google token audience mismatch")
+        email = info.get("email")
+        full_name = info.get("name", email)
+
+    elif data.provider == "microsoft":
+        if not MICROSOFT_CLIENT_ID:
+            raise HTTPException(status_code=501, detail="Microsoft SSO not configured on this server")
+        # Verify with Microsoft graph userinfo
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://graph.microsoft.com/v1.0/me",
+                headers={"Authorization": f"Bearer {data.token}"}
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid Microsoft token")
+        info = resp.json()
+        email = info.get("mail") or info.get("userPrincipalName")
+        full_name = info.get("displayName", email)
+
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not retrieve email from provider")
+
+    # Find or create user within the tenant
+    query = {"email": email}
+    if data.tenant_slug:
+        tenant = await db.tenants.find_one({"slug": data.tenant_slug})
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        if tenant.get("status") != TenantStatus.ACTIVE:
+            raise HTTPException(status_code=403, detail="Organization is inactive")
+        query["tenant_id"] = tenant["id"]
+
+    user = await db.users.find_one(query, {"_id": 0})
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="No account found for this email in the organization. Contact your administrator."
+        )
+
+    if user.get("status") == UserStatus.INACTIVE:
+        raise HTTPException(status_code=403, detail="Account inactive. Contact your administrator.")
+
+    normalize_user_roles(user)
+
+    access_token = create_access_token(user["id"], user["roles"], user.get("tenant_id"))
+    refresh_token_val = create_refresh_token(user["id"])
+
+    await log_action(user["id"], user["full_name"], f"login_sso_{data.provider}", "user", user["id"])
+
+    user_response = {k: v for k, v in user.items() if k != "password"}
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token_val,
+        user=user_response
+    )

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -8,13 +8,35 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Separator } from '../components/ui/separator';
-import { GraduationCap, Sun, Moon, Globe, Eye, EyeOff, Loader2, Building2, Shield, KeyRound, ArrowLeft, Mail } from 'lucide-react';
+import {
+  GraduationCap, Sun, Moon, Globe, Eye, EyeOff,
+  Loader2, Building2, Shield, KeyRound, ArrowLeft, Mail
+} from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+const MICROSOFT_CLIENT_ID = process.env.REACT_APP_MICROSOFT_CLIENT_ID;
+const MICROSOFT_TENANT_ID = process.env.REACT_APP_MICROSOFT_TENANT_ID || 'common';
+
+// ─── Microsoft OAuth helpers ──────────────────────────────────────────────────
+const getMsAuthUrl = (tenantSlug) => {
+  if (!MICROSOFT_CLIENT_ID) return null;
+  const redirectUri = encodeURIComponent(`${window.location.origin}/login`);
+  const state = encodeURIComponent(JSON.stringify({ provider: 'microsoft', tenantSlug: tenantSlug || '' }));
+  return (
+    `https://login.microsoftonline.com/${MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize` +
+    `?client_id=${MICROSOFT_CLIENT_ID}` +
+    `&response_type=token` +
+    `&redirect_uri=${redirectUri}` +
+    `&scope=openid%20email%20profile%20User.Read` +
+    `&response_mode=fragment` +
+    `&state=${state}`
+  );
+};
 
 const Login = () => {
   const [searchParams] = useSearchParams();
@@ -25,6 +47,7 @@ const Login = () => {
   const [tenantSlug, setTenantSlug] = useState(tenantSlugFromUrl || '');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState('');
   const [error, setError] = useState('');
   const [tenantInfo, setTenantInfo] = useState(null);
   const [loginType, setLoginType] = useState('organization');
@@ -39,6 +62,111 @@ const Login = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
+
+  // ─── Handle Microsoft OAuth redirect callback ────────────────────────────
+  const handleMsCallback = useCallback(async (accessToken, state) => {
+    try {
+      setSsoLoading('microsoft');
+      const { tenantSlug: slug } = JSON.parse(decodeURIComponent(state));
+      const res = await axios.post(`${API_URL}/auth/social-login`, {
+        provider: 'microsoft',
+        token: accessToken,
+        tenant_slug: slug || null
+      });
+      const { access_token, refresh_token } = res.data;
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      if (slug) localStorage.setItem('tenant_slug', slug);
+      toast.success('Login realizado com Microsoft!');
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao autenticar com Microsoft');
+    } finally {
+      setSsoLoading('');
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    // Parse Microsoft OAuth fragment on redirect back
+    if (window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = params.get('access_token');
+      const state = params.get('state');
+      if (accessToken && state) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        handleMsCallback(accessToken, state);
+      }
+    }
+  }, [handleMsCallback]);
+
+  useEffect(() => {
+    // Initialize Google Identity Services when client ID is available
+    if (!GOOGLE_CLIENT_ID) return;
+    const initGoogle = () => {
+      if (!window.google) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+    };
+    if (window.google) {
+      initGoogle();
+    } else {
+      const script = document.querySelector('script[src*="accounts.google.com/gsi"]');
+      if (script) script.addEventListener('load', initGoogle);
+    }
+  }, [tenantSlug]); // re-init when tenantSlug changes so state is captured
+
+  const handleGoogleCredential = async (response) => {
+    setSsoLoading('google');
+    setError('');
+    try {
+      const res = await axios.post(`${API_URL}/auth/social-login`, {
+        provider: 'google',
+        token: response.credential,
+        tenant_slug: tenantSlug || null
+      });
+      const { access_token, refresh_token } = res.data;
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      if (tenantSlug) localStorage.setItem('tenant_slug', tenantSlug);
+      toast.success('Login realizado com Google!');
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao autenticar com Google');
+    } finally {
+      setSsoLoading('');
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    if (!GOOGLE_CLIENT_ID) {
+      toast.error('Google SSO não configurado. Configure GOOGLE_CLIENT_ID no servidor.');
+      return;
+    }
+    if (loginType === 'organization' && !tenantInfo) {
+      toast.error('Selecione a organização antes de entrar com Google');
+      return;
+    }
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt();
+    }
+  };
+
+  const handleMicrosoftLogin = () => {
+    if (!MICROSOFT_CLIENT_ID) {
+      toast.error('Microsoft SSO não configurado. Configure MICROSOFT_CLIENT_ID no servidor.');
+      return;
+    }
+    if (loginType === 'organization' && !tenantInfo) {
+      toast.error('Selecione a organização antes de entrar com Microsoft');
+      return;
+    }
+    const url = getMsAuthUrl(tenantSlug);
+    if (url) window.location.href = url;
+  };
 
   useEffect(() => {
     const fetchTenant = async () => {
@@ -57,16 +185,13 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const slug = loginType === 'organization' ? tenantSlug : null;
-
       if (loginType === 'organization' && !tenantSlug) {
         setError('Por favor, informe o identificador da organização');
         setLoading(false);
         return;
       }
-
       await login(identifier, password, slug);
       toast.success(t('loginSuccess'));
       navigate('/dashboard');
@@ -82,7 +207,13 @@ const Login = () => {
     setResetLoading(true);
     try {
       const params = tenantSlug ? `?tenant_slug=${tenantSlug}` : '';
-      await axios.post(`${API_URL}/auth/password-reset/request${params}`, { email: resetEmail });
+      const res = await axios.post(`${API_URL}/auth/password-reset/request${params}`, { email: resetEmail });
+
+      // If SMTP is not configured the backend returns the reset token directly
+      if (res.data.reset_token) {
+        navigate(`/reset-password?token=${res.data.reset_token}`);
+        return;
+      }
       setResetSent(true);
     } catch (err) {
       toast.error('Erro ao solicitar recuperação de senha');
@@ -91,6 +222,7 @@ const Login = () => {
     }
   };
 
+  // ─── Forgot password screen ──────────────────────────────────────────────
   if (showForgotPassword) {
     return (
       <div
@@ -173,6 +305,7 @@ const Login = () => {
     );
   }
 
+  // ─── Main login screen ────────────────────────────────────────────────────
   return (
     <div
       className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative"
@@ -334,6 +467,7 @@ const Login = () => {
             </Button>
           </form>
 
+          {/* SSO buttons — only for organization login */}
           {loginType === 'organization' && (
             <>
               <div className="relative my-5">
@@ -344,45 +478,56 @@ const Login = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {/* Google */}
                 <Button
                   variant="outline"
                   className="h-11 flex items-center gap-2"
-                  onClick={() => toast.info('Integração SSO em configuração. Entre em contato com o administrador.')}
+                  onClick={handleGoogleLogin}
+                  disabled={!!ssoLoading}
                   type="button"
+                  title={!GOOGLE_CLIENT_ID ? 'Configure REACT_APP_GOOGLE_CLIENT_ID para ativar' : ''}
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
+                  {ssoLoading === 'google' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                  )}
                   Google
                 </Button>
+
+                {/* Microsoft */}
                 <Button
                   variant="outline"
                   className="h-11 flex items-center gap-2"
-                  onClick={() => toast.info('Integração SSO em configuração. Entre em contato com o administrador.')}
+                  onClick={handleMicrosoftLogin}
+                  disabled={!!ssoLoading}
                   type="button"
+                  title={!MICROSOFT_CLIENT_ID ? 'Configure REACT_APP_MICROSOFT_CLIENT_ID para ativar' : ''}
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#00A4EF">
-                    <path d="M11.4 24H0V12.6L11.4 24zM12.6 24L24 12.6V24H12.6zM24 11.4L12.6 0H24v11.4zM11.4 0L0 11.4V0h11.4z"/>
-                  </svg>
+                  {ssoLoading === 'microsoft' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#F25022" d="M1 1h10v10H1z"/>
+                      <path fill="#7FBA00" d="M13 1h10v10H13z"/>
+                      <path fill="#00A4EF" d="M1 13h10v10H1z"/>
+                      <path fill="#FFB900" d="M13 13h10v10H13z"/>
+                    </svg>
+                  )}
                   Microsoft
                 </Button>
               </div>
 
-              <div className="mt-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {t('noAccount')}{' '}
-                  <Link
-                    to={tenantSlug ? `/register?org=${tenantSlug}` : '/register'}
-                    className="text-primary hover:underline font-medium"
-                    data-testid="register-link"
-                  >
-                    {t('register')}
-                  </Link>
+              {(!GOOGLE_CLIENT_ID || !MICROSOFT_CLIENT_ID) && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Configure os Client IDs no servidor para ativar o SSO
                 </p>
-              </div>
+              )}
             </>
           )}
         </CardContent>

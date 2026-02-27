@@ -99,27 +99,7 @@ const Login = () => {
     }
   }, [handleMsCallback]);
 
-  useEffect(() => {
-    // Initialize Google Identity Services when client ID is available
-    if (!GOOGLE_CLIENT_ID) return;
-    const initGoogle = () => {
-      if (!window.google) return;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-        auto_select: false,
-        cancel_on_tap_outside: true
-      });
-    };
-    if (window.google) {
-      initGoogle();
-    } else {
-      const script = document.querySelector('script[src*="accounts.google.com/gsi"]');
-      if (script) script.addEventListener('load', initGoogle);
-    }
-  }, [tenantSlug]); // re-init when tenantSlug changes so state is captured
-
-  const handleGoogleCredential = async (response) => {
+  const handleGoogleCredential = useCallback(async (response) => {
     setSsoLoading('google');
     setError('');
     try {
@@ -139,7 +119,27 @@ const Login = () => {
     } finally {
       setSsoLoading('');
     }
-  };
+  }, [tenantSlug, navigate]);
+
+  useEffect(() => {
+    // Initialize Google Identity Services when client ID is available
+    if (!GOOGLE_CLIENT_ID) return;
+    const initGoogle = () => {
+      if (!window.google) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+    };
+    if (window.google) {
+      initGoogle();
+    } else {
+      const script = document.querySelector('script[src*="accounts.google.com/gsi"]');
+      if (script) script.addEventListener('load', initGoogle);
+    }
+  }, [handleGoogleCredential]);
 
   const handleGoogleLogin = () => {
     if (!GOOGLE_CLIENT_ID) {

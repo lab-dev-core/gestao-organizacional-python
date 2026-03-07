@@ -33,3 +33,6 @@ Seção: Misc
 
 Implementações:
 - Relatórios formativos e avaliativos: Possibilitar a construção através de um formulário composto pelo formador fazer avaliações individuais e coletivas para serem respondidas dentro do proprio app para leitura de resultados com graficos e numeros, no caso de respostas quantitativas, ou resumos gerados por IA em respostas qualitativas.
+
+**Nova Seção: Férias**
+- Registro de férias com as datas de previsão, datas que o formando tirou efetivamente as férias e numero máximo de férias configurados por um administrador. Controle geral de todas as ferias e relatorio individual

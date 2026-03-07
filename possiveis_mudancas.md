@@ -5,6 +5,7 @@ Seção: Login
 
 Seção: Cadastro usuario
 - Cadastrar nome de usuario para acesso ao sistema
+- Cadastrar e alterar, editar, novas funções além das padroes Moderador, formador e administrador [new]
 
 Seção: Usuários
 - Poder classificar na view ou por nome (ordem alfabética) ou por tipo de usuarios, rapidamente apenas clicando no cabeçalho da planilha

@@ -3,6 +3,10 @@ Seção: Login
 - Integração SSO (Google e Microsoft)
 - Campo para recuperar senha
 
+Seção: Dashboard
+- Avisar aniversariante do dia e lista dos aniversariantes do mês
+- Aniversariantes de consagração
+
 Seção: Cadastro usuario
 - Cadastrar nome de usuario para acesso ao sistema
 - Cadastrar e alterar, editar, novas funções além das padroes Moderador, formador e administrador [new]
@@ -10,6 +14,9 @@ Seção: Cadastro usuario
 Seção: Usuários
 - Poder classificar na view ou por nome (ordem alfabética) ou por tipo de usuarios, rapidamente apenas clicando no cabeçalho da planilha
 
+Seção: Perfil
+- Não está sendo possível adicionar foto (não salva)
+- Adicionar mais dados ao cadastro: CPF, Data da consagração, Nome da mãe, Estado Civil, Estado de vida, Data de nascimento, Curriculo (Cursos e graduações), Realiza acompanhamento Psicologico?, Realiza acompanhamento psiquiatrico? Problemas de saúde? Tratamento médico?
 
 Seção: Documentos
 - Visualizar no proprio navegador o arquivo sem ter a necessidade de fazer o download

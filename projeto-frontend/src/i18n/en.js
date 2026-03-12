@@ -284,6 +284,41 @@ const en = {
   roles: 'Roles',
   selectRoles: 'Select Roles',
 
+  // Marital Status
+  maritalStatus: 'Marital Status',
+  solteiro: 'Single',
+  casado: 'Married',
+  divorciado: 'Divorced',
+  viuvo: 'Widowed',
+  uniao_estavel: 'Civil Union',
+  outro: 'Other',
+
+  // Children
+  hasChildren: 'Has children?',
+  childrenCount: 'Number of children',
+
+  // Community
+  communityInfo: 'Community Information',
+  communityEntryDate: 'Community entry date',
+  communityEntryPlace: 'Where they were welcomed',
+  communityEntryPlaceholder: 'E.g.: Saint Joseph Retreat',
+
+  // Sacraments
+  sacraments: 'Sacraments',
+  baptism: 'Baptism',
+  firstCommunion: 'First Communion',
+  confirmation: 'Confirmation',
+  marriage: 'Marriage',
+  received: 'Received',
+  date: 'Date',
+
+  // Health
+  healthInfo: 'Health Information',
+  healthInfoDescription: 'Confidential — visible only to trainer and administrator',
+  psychiatricFollowup: 'Under psychiatric medical care?',
+  psychiatricMedication: 'Takes psychiatric medication?',
+  psychologicalFollowup: 'Under psychological care?',
+
   // Certificates
   certificates: 'Certificates',
   certificatesDescription: 'Manage certificates and completed courses',

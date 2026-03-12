@@ -28,3 +28,12 @@ class EducationLevel(str, Enum):
 class AcompanhamentoFrequency(str, Enum):
     WEEKLY = "weekly"
     BIWEEKLY = "biweekly"
+
+
+class MaritalStatus(str, Enum):
+    SOLTEIRO = "solteiro"
+    CASADO = "casado"
+    DIVORCIADO = "divorciado"
+    VIUVO = "viuvo"
+    UNIAO_ESTAVEL = "uniao_estavel"
+    OUTRO = "outro"

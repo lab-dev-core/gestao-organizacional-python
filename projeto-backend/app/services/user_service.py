@@ -59,11 +59,9 @@ class UserService:
         user_dict["updated_at"] = now
         user_dict["deleted_at"] = None
 
-        if user_dict.get("address") and hasattr(user_dict["address"], "model_dump"):
-            user_dict["address"] = user_dict["address"].model_dump()
-
-        if user_dict.get("family_contact") and hasattr(user_dict["family_contact"], "model_dump"):
-            user_dict["family_contact"] = user_dict["family_contact"].model_dump()
+        for nested_field in ("address", "family_contact", "sacraments"):
+            if user_dict.get(nested_field) and hasattr(user_dict[nested_field], "model_dump"):
+                user_dict[nested_field] = user_dict[nested_field].model_dump()
 
         async with transaction() as session:
             insert_kwargs = {"session": session} if session else {}
@@ -115,11 +113,9 @@ class UserService:
             if await db.users.find_one(email_query):
                 raise HTTPException(status_code=400, detail="Email already registered")
 
-        if update_dict.get("address") and hasattr(update_dict["address"], "model_dump"):
-            update_dict["address"] = update_dict["address"].model_dump()
-
-        if update_dict.get("family_contact") and hasattr(update_dict["family_contact"], "model_dump"):
-            update_dict["family_contact"] = update_dict["family_contact"].model_dump()
+        for nested_field in ("address", "family_contact", "sacraments"):
+            if update_dict.get(nested_field) and hasattr(update_dict[nested_field], "model_dump"):
+                update_dict[nested_field] = update_dict[nested_field].model_dump()
 
         # Registra transição de jornada formativa se a etapa mudou
         new_stage_id = update_dict.get("formative_stage_id")

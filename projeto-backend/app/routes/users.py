@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
-import shutil
+import asyncio
 import uuid
 
 from app.database import db
@@ -137,15 +137,28 @@ async def upload_user_photo(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    ext = Path(file.filename).suffix.lower()
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Invalid file type")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de arquivo não permitido. Use: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
+        )
+
+    # Lê o conteúdo antes de qualquer operação I/O para não bloquear
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Arquivo vazio")
+
+    # Limite de 5 MB para fotos de perfil
+    MAX_PHOTO_SIZE = 5 * 1024 * 1024
+    if len(contents) > MAX_PHOTO_SIZE:
+        raise HTTPException(status_code=400, detail="Foto deve ter no máximo 5 MB")
 
     file_id = str(uuid.uuid4())
     file_path = UPLOAD_DIR / "photos" / f"{file_id}{ext}"
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Escrita assíncrona — não bloqueia o event loop
+    await asyncio.to_thread(file_path.write_bytes, contents)
 
     photo_url = f"/api/uploads/photos/{file_id}{ext}"
     await db.users.update_one(

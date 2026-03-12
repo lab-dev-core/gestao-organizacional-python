@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Switch } from '../components/ui/switch';
 import { Separator } from '../components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { User, Camera, Loader2, Sun, Moon, Globe } from 'lucide-react';
+import { User, Camera, Loader2, Sun, Moon, Globe, Heart, Church, Stethoscope, Home } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -23,24 +23,57 @@ const EDUCATION_LEVELS = [
   'pos_graduacao', 'mestrado', 'doutorado'
 ];
 
+const MARITAL_STATUS_OPTIONS = [
+  'solteiro', 'casado', 'divorciado', 'viuvo', 'uniao_estavel', 'outro'
+];
+
+const SACRAMENT_KEYS = [
+  { key: 'baptism', label: 'baptism' },
+  { key: 'first_communion', label: 'firstCommunion' },
+  { key: 'confirmation', label: 'confirmation' },
+  { key: 'marriage', label: 'marriage' },
+];
+
 const ProfilePage = () => {
-  const { user, updateUser, getAuthHeaders } = useAuth();
-  const { theme, toggleTheme, isDark } = useTheme();
-  const { language, toggleLanguage, t, isPortuguese } = useLanguage();
+  const { user, updateUser, getAuthHeaders, isAdmin, isFormador } = useAuth();
+  const { toggleTheme, isDark } = useTheme();
+  const { toggleLanguage, t, isPortuguese } = useLanguage();
+
+  const canSeeHealthInfo = isAdmin || isFormador;
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+
   const [formData, setFormData] = useState({
     full_name: user?.full_name || '',
     phone: user?.phone || '',
     education_level: user?.education_level || '',
     family_contact: user?.family_contact || { name: '', phone: '', relationship: '' },
-    address: user?.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' }
+    address: user?.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' },
+
+    marital_status: user?.marital_status || '',
+    has_children: user?.has_children ?? null,
+    children_count: user?.children_count ?? '',
+
+    community_entry_date: user?.community_entry_date || '',
+    community_entry_place: user?.community_entry_place || '',
+
+    sacraments: user?.sacraments || {
+      baptism: false, baptism_date: '',
+      first_communion: false, first_communion_date: '',
+      confirmation: false, confirmation_date: '',
+      marriage: false, marriage_date: '',
+    },
+
+    psychiatric_followup: user?.psychiatric_followup ?? null,
+    psychiatric_medication: user?.psychiatric_medication ?? null,
+    psychological_followup: user?.psychological_followup ?? null,
   });
 
   const handleChange = (field, value) => {
-    if (field.includes('.')) {
-      const [parent, child] = field.split('.');
+    const parts = field.split('.');
+    if (parts.length === 2) {
+      const [parent, child] = parts;
       setFormData(prev => ({
         ...prev,
         [parent]: { ...prev[parent], [child]: value }
@@ -55,7 +88,14 @@ const ProfilePage = () => {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const response = await axios.put(`${API_URL}/users/${user.id}`, formData, { headers });
+      const payload = { ...formData };
+      if (!payload.marital_status) delete payload.marital_status;
+      if (!payload.community_entry_date) delete payload.community_entry_date;
+      if (!payload.community_entry_place) delete payload.community_entry_place;
+      if (payload.children_count === '') delete payload.children_count;
+      if (!payload.education_level) delete payload.education_level;
+
+      const response = await axios.put(`${API_URL}/users/${user.id}`, payload, { headers });
       updateUser(response.data);
       toast.success(t('savedSuccessfully'));
     } catch (error) {
@@ -67,23 +107,40 @@ const ProfilePage = () => {
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !user?.id) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Tipo de arquivo não permitido. Use JPG, PNG, GIF ou WEBP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A foto deve ter no máximo 5 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    const photoFormData = new FormData();
+    photoFormData.append('file', file);
 
     setUploading(true);
     try {
-      const headers = getAuthHeaders();
-      const response = await axios.post(`${API_URL}/users/${user.id}/photo`, formData, {
-        headers
-      });
+      const authHeaders = getAuthHeaders();
+      // Não definir Content-Type — o browser gera com o boundary correto para multipart
+      const response = await axios.post(
+        `${API_URL}/users/${user.id}/photo`,
+        photoFormData,
+        { headers: authHeaders }
+      );
       updateUser({ photo_url: response.data.photo_url });
       toast.success('Foto atualizada com sucesso');
     } catch (error) {
-      toast.error(error.response?.data?.detail || t('errorOccurred'));
+      const msg = error.response?.data?.detail || t('errorOccurred');
+      toast.error(`Erro ao enviar foto: ${msg}`);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -92,6 +149,29 @@ const ProfilePage = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  const photoSrc = user?.photo_url
+    ? `${process.env.REACT_APP_BACKEND_URL}${user.photo_url}`
+    : undefined;
+
+  const YesNoSelect = ({ field, label }) => (
+    <div className="flex items-center justify-between py-2">
+      <Label>{label}</Label>
+      <Select
+        value={formData[field] === null || formData[field] === undefined ? 'null' : String(formData[field])}
+        onValueChange={(v) => handleChange(field, v === 'null' ? null : v === 'true')}
+      >
+        <SelectTrigger className="w-36">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="null">Não informado</SelectItem>
+          <SelectItem value="true">{t('yes')}</SelectItem>
+          <SelectItem value="false">{t('no')}</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
     <div className="space-y-6 max-w-2xl" data-testid="profile-page">
       <div>
@@ -99,13 +179,13 @@ const ProfilePage = () => {
         <p className="text-muted-foreground mt-1">Gerencie suas informações pessoais</p>
       </div>
 
-      {/* Photo Section */}
+      {/* ── Foto ────────────────────────────────────────────────────────── */}
       <Card className="border-0 shadow-md">
         <CardContent className="pt-6">
           <div className="flex items-center gap-6">
             <div className="relative">
               <Avatar className="w-24 h-24 border-4 border-primary/20">
-                <AvatarImage src={user?.photo_url ? `${process.env.REACT_APP_BACKEND_URL}${user.photo_url}` : undefined} />
+                <AvatarImage src={photoSrc} alt={user?.full_name} />
                 <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
                   {getInitials(user?.full_name)}
                 </AvatarFallback>
@@ -118,7 +198,7 @@ const ProfilePage = () => {
                 )}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                   onChange={handlePhotoUpload}
                   className="hidden"
                   disabled={uploading}
@@ -136,19 +216,23 @@ const ProfilePage = () => {
                   ))}
                 </div>
               )}
+              <p className="text-xs text-muted-foreground mt-1">JPG, PNG, GIF ou WEBP · máx. 5 MB</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Personal Info */}
-      <Card className="border-0 shadow-md">
-        <CardHeader>
-          <CardTitle className="text-lg">Informações Pessoais</CardTitle>
-          <CardDescription>Atualize suas informações de contato</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+
+        {/* ── Informações Pessoais ─────────────────────────────────────── */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <User className="w-4 h-4" /> Informações Pessoais
+            </CardTitle>
+            <CardDescription>Dados básicos de contato e identificação</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t('fullName')}</Label>
@@ -167,12 +251,28 @@ const ProfilePage = () => {
                   data-testid="profile-phone-input"
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
+                <Label>{t('maritalStatus')}</Label>
+                <Select
+                  value={formData.marital_status || 'none'}
+                  onValueChange={(v) => handleChange('marital_status', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecione...</SelectItem>
+                    {MARITAL_STATUS_OPTIONS.map(opt => (
+                      <SelectItem key={opt} value={opt}>{t(opt)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>{t('educationLevel')}</Label>
-                <Select value={formData.education_level || 'none'} onValueChange={(v) => handleChange('education_level', v === 'none' ? '' : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
+                <Select
+                  value={formData.education_level || 'none'}
+                  onValueChange={(v) => handleChange('education_level', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Selecione...</SelectItem>
                     {EDUCATION_LEVELS.map(level => (
@@ -183,9 +283,40 @@ const ProfilePage = () => {
               </div>
             </div>
 
-            <Separator className="my-4" />
+            {/* Filhos */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t('hasChildren')}</Label>
+                <Select
+                  value={formData.has_children === null || formData.has_children === undefined ? 'null' : String(formData.has_children)}
+                  onValueChange={(v) => handleChange('has_children', v === 'null' ? null : v === 'true')}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="null">Não informado</SelectItem>
+                    <SelectItem value="true">{t('yes')}</SelectItem>
+                    <SelectItem value="false">{t('no')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.has_children === true && (
+                <div className="space-y-2">
+                  <Label>{t('childrenCount')}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formData.children_count}
+                    onChange={(e) => handleChange('children_count', e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </div>
 
-            <h3 className="font-semibold">{t('familyContact')}</h3>
+            <Separator />
+
+            {/* Contato da Família */}
+            <h3 className="font-semibold text-sm">{t('familyContact')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>{t('familyContactName')}</Label>
@@ -213,9 +344,12 @@ const ProfilePage = () => {
               </div>
             </div>
 
-            <Separator className="my-4" />
+            <Separator />
 
-            <h3 className="font-semibold">{t('address')}</h3>
+            {/* Endereço */}
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <Home className="w-4 h-4" /> {t('address')}
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>{t('cep')}</Label>
@@ -255,18 +389,99 @@ const ProfilePage = () => {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="pt-4">
-              <Button type="submit" disabled={loading} data-testid="profile-save-btn">
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {t('save')}
-              </Button>
+        {/* ── Informações na Comunidade ────────────────────────────────── */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Heart className="w-4 h-4" /> {t('communityInfo')}
+            </CardTitle>
+            <CardDescription>Dados de ingresso e acolhimento na comunidade</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t('communityEntryDate')}</Label>
+                <Input
+                  type="date"
+                  value={formData.community_entry_date || ''}
+                  onChange={(e) => handleChange('community_entry_date', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('communityEntryPlace')}</Label>
+                <Input
+                  value={formData.community_entry_place || ''}
+                  onChange={(e) => handleChange('community_entry_place', e.target.value)}
+                  placeholder={t('communityEntryPlaceholder')}
+                />
+              </div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Preferences */}
+        {/* ── Sacramentos ──────────────────────────────────────────────── */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Church className="w-4 h-4" /> {t('sacraments')}
+            </CardTitle>
+            <CardDescription>Sacramentos recebidos</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {SACRAMENT_KEYS.map(({ key, label }) => (
+              <div key={key} className="flex items-center gap-4">
+                <div className="flex items-center gap-3 w-44 shrink-0">
+                  <Switch
+                    checked={!!formData.sacraments?.[key]}
+                    onCheckedChange={(v) => handleChange(`sacraments.${key}`, v)}
+                  />
+                  <Label className="cursor-pointer">{t(label)}</Label>
+                </div>
+                {formData.sacraments?.[key] && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{t('date')}:</span>
+                    <Input
+                      type="date"
+                      className="h-8 text-sm w-40"
+                      value={formData.sacraments?.[`${key}_date`] || ''}
+                      onChange={(e) => handleChange(`sacraments.${key}_date`, e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* ── Saúde (visível apenas para admin/formador) ───────────────── */}
+        {canSeeHealthInfo && (
+          <Card className="border-0 shadow-md border-l-4 border-l-amber-400">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Stethoscope className="w-4 h-4" /> {t('healthInfo')}
+              </CardTitle>
+              <CardDescription>{t('healthInfoDescription')}</CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y">
+              <YesNoSelect field="psychiatric_followup" label={t('psychiatricFollowup')} />
+              <YesNoSelect field="psychiatric_medication" label={t('psychiatricMedication')} />
+              <YesNoSelect field="psychological_followup" label={t('psychologicalFollowup')} />
+            </CardContent>
+          </Card>
+        )}
+
+        <div>
+          <Button type="submit" disabled={loading} data-testid="profile-save-btn">
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {t('save')}
+          </Button>
+        </div>
+      </form>
+
+      {/* ── Preferências ─────────────────────────────────────────────── */}
       <Card className="border-0 shadow-md">
         <CardHeader>
           <CardTitle className="text-lg">{t('settings')}</CardTitle>
@@ -281,15 +496,9 @@ const ProfilePage = () => {
                 <p className="text-sm text-muted-foreground">Ativar modo escuro</p>
               </div>
             </div>
-            <Switch
-              checked={isDark}
-              onCheckedChange={toggleTheme}
-              data-testid="theme-switch"
-            />
+            <Switch checked={isDark} onCheckedChange={toggleTheme} data-testid="theme-switch" />
           </div>
-
           <Separator />
-
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Globe className="w-5 h-5" />
@@ -300,12 +509,7 @@ const ProfilePage = () => {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleLanguage}
-              data-testid="language-switch"
-            >
+            <Button variant="outline" size="sm" onClick={toggleLanguage} data-testid="language-switch">
               {isPortuguese ? 'EN' : 'PT'}
             </Button>
           </div>

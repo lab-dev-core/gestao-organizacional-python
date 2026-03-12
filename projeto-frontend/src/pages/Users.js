@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
+import { Switch } from '../components/ui/switch';
 import { Plus, Search, Pencil, Trash2, Users, Loader2, Eye, EyeOff, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,11 +28,22 @@ const EDUCATION_LEVELS = [
   'pos_graduacao', 'mestrado', 'doutorado'
 ];
 
+const MARITAL_STATUS_OPTIONS = [
+  'solteiro', 'casado', 'divorciado', 'viuvo', 'uniao_estavel', 'outro'
+];
+
 const AVAILABLE_ROLES = [
   { value: 'user', labelKey: 'user' },
   { value: 'formador', labelKey: 'formadorRole' },
   { value: 'admin', labelKey: 'admin' },
 ];
+
+const EMPTY_SACRAMENTS = {
+  baptism: false, baptism_date: '',
+  first_communion: false, first_communion_date: '',
+  confirmation: false, confirmation_date: '',
+  marriage: false, marriage_date: ''
+};
 
 const UsersPage = () => {
   const { getAuthHeaders, isAdmin } = useAuth();
@@ -66,10 +78,16 @@ const UsersPage = () => {
     formador_id: '',
     education_level: '',
     family_contact: { name: '', phone: '', relationship: '' },
-    address: {
-      cep: '', street: '', number: '', complement: '',
-      neighborhood: '', city: '', state: ''
-    }
+    address: { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' },
+    marital_status: '',
+    has_children: null,
+    children_count: '',
+    community_entry_date: '',
+    community_entry_place: '',
+    sacraments: { ...EMPTY_SACRAMENTS },
+    psychiatric_followup: null,
+    psychiatric_medication: null,
+    psychological_followup: null,
   });
 
   const fetchData = useCallback(async () => {
@@ -107,7 +125,16 @@ const UsersPage = () => {
       location_id: '', function_id: '', formative_stage_id: '', formador_id: '',
       education_level: '',
       family_contact: { name: '', phone: '', relationship: '' },
-      address: { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' }
+      address: { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' },
+      marital_status: '',
+      has_children: null,
+      children_count: '',
+      community_entry_date: '',
+      community_entry_place: '',
+      sacraments: { ...EMPTY_SACRAMENTS },
+      psychiatric_followup: null,
+      psychiatric_medication: null,
+      psychological_followup: null,
     });
     setEditingUser(null);
     setShowPassword(false);
@@ -122,7 +149,16 @@ const UsersPage = () => {
         password: '',
         roles: userRoles,
         family_contact: user.family_contact || { name: '', phone: '', relationship: '' },
-        address: user.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' }
+        address: user.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' },
+        marital_status: user.marital_status || '',
+        has_children: user.has_children ?? null,
+        children_count: user.children_count ?? '',
+        community_entry_date: user.community_entry_date || '',
+        community_entry_place: user.community_entry_place || '',
+        sacraments: user.sacraments ? { ...EMPTY_SACRAMENTS, ...user.sacraments } : { ...EMPTY_SACRAMENTS },
+        psychiatric_followup: user.psychiatric_followup ?? null,
+        psychiatric_medication: user.psychiatric_medication ?? null,
+        psychological_followup: user.psychological_followup ?? null,
       });
     } else {
       resetForm();
@@ -564,6 +600,138 @@ const UsersPage = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Estado Civil + Filhos */}
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="font-semibold mb-4">Informações Pessoais</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t('maritalStatus')}</Label>
+                        <Select
+                          value={formData.marital_status || 'none'}
+                          onValueChange={(v) => handleChange('marital_status', v === 'none' ? '' : v)}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum</SelectItem>
+                            {MARITAL_STATUS_OPTIONS.map(s => (
+                              <SelectItem key={s} value={s}>{t(s)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('hasChildren')}</Label>
+                        <Select
+                          value={formData.has_children === null ? 'none' : formData.has_children ? 'true' : 'false'}
+                          onValueChange={(v) => handleChange('has_children', v === 'none' ? null : v === 'true')}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Não informado</SelectItem>
+                            <SelectItem value="true">{t('yes')}</SelectItem>
+                            <SelectItem value="false">{t('no')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {formData.has_children === true && (
+                        <div className="space-y-2">
+                          <Label>{t('childrenCount')}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={formData.children_count}
+                            onChange={(e) => handleChange('children_count', e.target.value ? parseInt(e.target.value) : '')}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Comunidade */}
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="font-semibold mb-4">{t('communityInfo')}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t('communityEntryDate')}</Label>
+                        <Input
+                          type="date"
+                          value={formData.community_entry_date || ''}
+                          onChange={(e) => handleChange('community_entry_date', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('communityEntryPlace')}</Label>
+                        <Input
+                          value={formData.community_entry_place || ''}
+                          onChange={(e) => handleChange('community_entry_place', e.target.value)}
+                          placeholder={t('communityEntryPlaceholder')}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sacramentos */}
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="font-semibold mb-4">{t('sacraments')}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[
+                        { key: 'baptism', dateKey: 'baptism_date', label: t('baptism') },
+                        { key: 'first_communion', dateKey: 'first_communion_date', label: t('firstCommunion') },
+                        { key: 'confirmation', dateKey: 'confirmation_date', label: t('confirmation') },
+                        { key: 'marriage', dateKey: 'marriage_date', label: t('marriage') },
+                      ].map(({ key, dateKey, label }) => (
+                        <div key={key} className="space-y-2 p-3 border rounded-md">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={!!formData.sacraments?.[key]}
+                              onCheckedChange={(v) => handleChange(`sacraments.${key}`, v)}
+                            />
+                            <Label className="cursor-pointer">{label}</Label>
+                          </div>
+                          {formData.sacraments?.[key] && (
+                            <div className="pl-8">
+                              <Input
+                                type="date"
+                                value={formData.sacraments?.[dateKey] || ''}
+                                onChange={(e) => handleChange(`sacraments.${dateKey}`, e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Saúde — visível apenas para admin */}
+                  {isAdmin && (
+                    <div className="border-t border-amber-200 pt-4 mt-4 pl-3 border-l-4 border-l-amber-400">
+                      <h3 className="font-semibold mb-1">{t('healthInfo')}</h3>
+                      <p className="text-xs text-muted-foreground mb-4">{t('healthInfoDescription')}</p>
+                      <div className="grid grid-cols-1 gap-3">
+                        {[
+                          { field: 'psychiatric_followup', label: t('psychiatricFollowup') },
+                          { field: 'psychiatric_medication', label: t('psychiatricMedication') },
+                          { field: 'psychological_followup', label: t('psychologicalFollowup') },
+                        ].map(({ field, label }) => (
+                          <div key={field} className="space-y-1">
+                            <Label>{label}</Label>
+                            <Select
+                              value={formData[field] === null ? 'none' : formData[field] ? 'true' : 'false'}
+                              onValueChange={(v) => handleChange(field, v === 'none' ? null : v === 'true')}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Não informado" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Não informado</SelectItem>
+                                <SelectItem value="true">{t('yes')}</SelectItem>
+                                <SelectItem value="false">{t('no')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <DialogFooter className="pt-4">
                     <DialogClose asChild>

@@ -15,13 +15,13 @@ Seção: Usuários
 
 Seção: Perfil
 - Não está sendo possível adicionar foto (não salva)
-Novos campos:
-  - ⁠Estado Civil
-  - ⁠Possui filho?
-  - Data de ingresso na comuniade (Data e em qual recanto foi acolhido como filho(a))
-  - ⁠É batizado? Fez primeira comunhão? Crisma?
-  - Faz acompanhamento médico psiquiatrico? toma medicação?
-  - faz acompanhamento psicológico?
+    Novos campos:
+      - ⁠Estado Civil
+      - ⁠Possui filho?
+      - Data de ingresso na comuniade (Data e em qual recanto foi acolhido como filho(a))
+      - ⁠É batizado? Fez primeira comunhão? Crisma?
+      - Faz acompanhamento médico psiquiatrico? toma medicação?
+      - faz acompanhamento psicológico?
 
 Seção: Documentos
 - Visualizar no proprio navegador o arquivo sem ter a necessidade de fazer o download

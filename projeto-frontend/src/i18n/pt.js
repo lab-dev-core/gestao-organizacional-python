@@ -284,6 +284,41 @@ const pt = {
   roles: 'Funções',
   selectRoles: 'Selecionar Funções',
 
+  // Estado Civil
+  maritalStatus: 'Estado Civil',
+  solteiro: 'Solteiro(a)',
+  casado: 'Casado(a)',
+  divorciado: 'Divorciado(a)',
+  viuvo: 'Viúvo(a)',
+  uniao_estavel: 'União Estável',
+  outro: 'Outro',
+
+  // Filhos
+  hasChildren: 'Possui filhos?',
+  childrenCount: 'Quantidade de filhos',
+
+  // Comunidade
+  communityInfo: 'Informações na Comunidade',
+  communityEntryDate: 'Data de ingresso na comunidade',
+  communityEntryPlace: 'Recanto onde foi acolhido(a)',
+  communityEntryPlaceholder: 'Ex: Recanto São José',
+
+  // Sacramentos
+  sacraments: 'Sacramentos',
+  baptism: 'Batismo',
+  firstCommunion: 'Primeira Comunhão',
+  confirmation: 'Crisma',
+  marriage: 'Casamento',
+  received: 'Recebeu',
+  date: 'Data',
+
+  // Saúde
+  healthInfo: 'Informações de Saúde',
+  healthInfoDescription: 'Informações confidenciais — visíveis apenas ao formador e administrador',
+  psychiatricFollowup: 'Faz acompanhamento médico psiquiátrico?',
+  psychiatricMedication: 'Toma medicação psiquiátrica?',
+  psychologicalFollowup: 'Faz acompanhamento psicológico?',
+
   // Certificates
   certificates: 'Certificados',
   certificatesDescription: 'Gerencie certificados e cursos concluídos',

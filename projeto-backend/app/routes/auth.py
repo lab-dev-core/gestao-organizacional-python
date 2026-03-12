@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from datetime import datetime, timezone
 from pydantic import BaseModel
 import uuid
@@ -185,7 +185,11 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/password-reset/request")
-async def request_password_reset(reset_data: PasswordResetRequest, tenant_slug: str = None):
+async def request_password_reset(
+    reset_data: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    tenant_slug: str = None,
+):
     query = {"email": reset_data.email}
 
     if tenant_slug:
@@ -195,6 +199,7 @@ async def request_password_reset(reset_data: PasswordResetRequest, tenant_slug: 
 
     user = await db.users.find_one(query, {"_id": 0})
 
+    # Responde imediatamente — não revela se o email existe (anti-enumeration)
     if not user:
         return {"message": "If the email exists, a reset link will be sent"}
 
@@ -211,14 +216,12 @@ async def request_password_reset(reset_data: PasswordResetRequest, tenant_slug: 
         upsert=True
     )
 
-    email_sent = await send_password_reset_email(user["email"], token, user["full_name"])
+    # Envia email em background — a resposta HTTP retorna imediatamente
+    background_tasks.add_task(send_password_reset_email, user["email"], token, user["full_name"])
 
     await log_action(user["id"], user["full_name"], "password_reset_request", "user", user["id"])
 
-    return {
-        "message": "If the email exists, a reset link will be sent",
-        "email_sent": email_sent
-    }
+    return {"message": "If the email exists, a reset link will be sent"}
 
 
 @router.post("/password-reset/confirm")

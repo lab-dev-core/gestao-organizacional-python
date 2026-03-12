@@ -14,6 +14,18 @@ services:
     networks:
       - app-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - app-network
+
   backend:
     build:
       context: ./projeto-backend
@@ -25,18 +37,24 @@ services:
     environment:
       - MONGO_URL=mongodb://mongodb:27017
       - DB_NAME=gestao_organizacional
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-key-change-in-production}
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://frontend
+      - REDIS_URL=redis://redis:6379
+      # JWT_SECRET: defina no arquivo .env — NÃO use o valor padrão em produção
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET deve ser definido no arquivo .env}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:80,http://frontend}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-noreply@example.com}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL:-superadmin@sistema.com}
+      - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD:?SUPERADMIN_PASSWORD deve ser definido no arquivo .env}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
     volumes:
       - backend_uploads:/app/uploads
     depends_on:
       - mongodb
+      - redis
     networks:
       - app-network
 
@@ -56,6 +74,7 @@ services:
 volumes:
   mongodb_data:
   backend_uploads:
+  redis_data:
 
 networks:
   app-network:

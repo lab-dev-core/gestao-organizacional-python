@@ -1,30 +1,28 @@
 Seção: Login
-- Possibilidade de fazer login com o nome de usuario ou CPF nao somente email
-- Integração SSO (Google e Microsoft)
-- Campo para recuperar senha
+[feito]- Possibilidade de fazer login com o nome de usuario ou CPF nao somente email
+[revisar] - Integração SSO (Google e Microsoft) "Google SSO não configurado. Configure GOOGLE_CLIENT_ID no servidor."
+[revisar] - Campo para recuperar senha "Nao recebi o email para verificar a senha"
 
 Seção: Dashboard
 - Avisar aniversariante do dia e lista dos aniversariantes do mês
 - Aniversariantes de consagração
 
-Seção: Cadastro usuario
-- Cadastrar nome de usuario para acesso ao sistema
-
 Seção: Usuários
-- Poder classificar na view ou por nome (ordem alfabética) ou por tipo de usuarios, rapidamente apenas clicando no cabeçalho da planilha
+[feito] - Poder classificar na view ou por nome (ordem alfabética) ou por tipo de usuarios, rapidamente apenas clicando no cabeçalho da planilha
+- Adicionar filtro Classificar também por recanto
 
 Seção: Perfil
 - Não está sendo possível adicionar foto (não salva)
     Novos campos:
       - ⁠Estado Civil
-      - ⁠Possui filho?
+      - ⁠Possui filho? Se sim, numero e nomes (campo aberto talvez)
       - Data de ingresso na comuniade (Data e em qual recanto foi acolhido como filho(a))
       - ⁠É batizado? Fez primeira comunhão? Crisma?
       - Faz acompanhamento médico psiquiatrico? toma medicação?
       - faz acompanhamento psicológico?
 
 Seção: Documentos
-- Visualizar no proprio navegador o arquivo sem ter a necessidade de fazer o download
+[revisar] - Visualizar no proprio navegador o arquivo sem ter a necessidade de fazer o download "Ao clicar em visualizar no navegador baixa um arquivo e nao abre"
 - Marca e barra de progresso ao consumir os arquivos (informação pertinente para após o termino do ciclo fazer a avaliação do formando)
 - Documentos - subcategorias
 - Quem pode visualizar o documento?
@@ -32,7 +30,7 @@ Seção: Documentos
 Seção: Videos
 - Videos - subcategorias - disponibilidade de comentários, arquivos - possibilidade de avaliação - liberação gradativa com base em avaliação.
 - Quem pode visualizar o video?
-- Erro ao visualizar o video no youtube (Erro 153 - Erro de configuração do player de vídeo)
+[feito - corrigido] - Erro ao visualizar o video no youtube (Erro 153 - Erro de configuração do player de vídeo)
 
 Seção: Acompanhamento
 - Verificar se acompanhado está lendo e visualizando o conteúdo dos seus acompanhamentos
@@ -41,7 +39,7 @@ Seção: Acompanhamento
 - Integração com IA ou ao menos possibilidade de Gravar o acompanhamento e a IA transcrever para auxiliar no registro
 
 Seção: Misc
-- Relatorio individual do formando demonstrando a barra de progresso do quanto ele consumiu os arquivos e videos, numero de acompanhamentos feitos
+[revisar] - Relatorio individual do formando demonstrando a barra de progresso do quanto ele consumiu os arquivos e videos, numero de acompanhamentos feitos "Não abriu a lista suspensa com o nome dos formandos"
 
 Implementações:
 - Relatórios formativos e avaliativos: Possibilitar a construção através de um formulário composto pelo formador fazer avaliações individuais e coletivas para serem respondidas dentro do proprio app para leitura de resultados com graficos e numeros, no caso de respostas quantitativas, ou resumos gerados por IA em respostas qualitativas.

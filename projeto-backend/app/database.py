@@ -1,9 +1,39 @@
+import logging
 from contextlib import asynccontextmanager
+from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import MONGO_URL, DB_NAME
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
+
+logger = logging.getLogger(__name__)
+
+# Cache do resultado da sondagem de suporte a transações
+_transactions_supported: Optional[bool] = None
+
+
+async def _probe_transaction_support() -> bool:
+    """
+    Sonda uma vez se este MongoDB suporta transações multi-documento.
+    Replica sets suportam; instâncias standalone não suportam.
+    O resultado é cacheado para evitar round-trips repetidos.
+    """
+    global _transactions_supported
+    if _transactions_supported is not None:
+        return _transactions_supported
+
+    try:
+        async with await client.start_session() as session:
+            session.start_transaction()
+            # Qualquer operação com sessão falha imediatamente em standalone
+            await db["_txn_probe"].find_one({}, session=session)
+            await session.abort_transaction()
+        _transactions_supported = True
+    except Exception:
+        _transactions_supported = False
+
+    return _transactions_supported
 
 
 async def ping_db() -> bool:
@@ -33,21 +63,15 @@ async def transaction():
             await db.users.insert_one(doc, session=session)
             await db.audit_logs.insert_one(log, session=session)
     """
-    import logging
-    logger = logging.getLogger(__name__)
+    if not await _probe_transaction_support():
+        logger.warning(
+            "MongoDB não suporta transações (standalone). "
+            "Configure replica set para consistência ACID. "
+            "Executando sem transação."
+        )
+        yield None
+        return
 
-    try:
-        async with await client.start_session() as session:
-            async with session.start_transaction():
-                yield session
-    except Exception as e:
-        # Standalone MongoDB não suporta transações — fallback sem sessão
-        if "Transaction numbers are only allowed" in str(e) or "not a primary" in str(e).lower():
-            logger.warning(
-                "MongoDB não suporta transações (standalone). "
-                "Configure replica set para consistência ACID. "
-                "Executando sem transação."
-            )
-            yield None
-        else:
-            raise
+    async with await client.start_session() as session:
+        async with session.start_transaction():
+            yield session

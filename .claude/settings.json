@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "skill-creator@claude-plugins-official": true,
+    "example-skills@anthropic-agent-skills": true,
+    "document-skills@anthropic-agent-skills": true,
+    "claude-api@anthropic-agent-skills": true,
+    "formapro-skills@local": true
+  }
+}

@@ -58,6 +58,8 @@ class UserBase(BaseModel):
     community_entry_place: Optional[str] = None  # Recanto/local onde foi acolhido
     sacraments: Optional[SacramentsModel] = None
 
+    children_names: Optional[str] = None              # Nomes dos filhos (campo livre)
+
     # Saúde (informações sensíveis — acesso restrito ao formador/admin)
     psychiatric_followup: Optional[bool] = None      # Faz acompanhamento psiquiátrico?
     psychiatric_medication: Optional[bool] = None    # Toma medicação psiquiátrica?
@@ -94,6 +96,7 @@ class UserUpdate(BaseModel):
     community_entry_date: Optional[str] = None
     community_entry_place: Optional[str] = None
     sacraments: Optional[SacramentsModel] = None
+    children_names: Optional[str] = None
 
     # Saúde
     psychiatric_followup: Optional[bool] = None

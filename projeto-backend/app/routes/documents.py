@@ -402,6 +402,66 @@ async def download_document(doc_id: str, current_user: dict = Depends(get_curren
     return FileResponse(file_path, filename=doc["file_name"], media_type="application/octet-stream")
 
 
+# ==================== VISUALIZAÇÃO INLINE ====================
+
+_INLINE_MIME = {
+    "pdf": "application/pdf",
+    "txt": "text/plain; charset=utf-8",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
+
+
+@router.get("/{doc_id}/view")
+async def view_document_inline(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """Serve o arquivo com Content-Disposition: inline para visualização no navegador."""
+    doc = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not doc.get("is_public") and not check_permission(current_user, doc.get("permissions")):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    access = await check_document_access(doc, current_user["id"])
+    if not access.is_unlocked:
+        raise HTTPException(status_code=403, detail=access.reason or "Document locked")
+
+    file_type = doc.get("file_type", "")
+    media_type = _INLINE_MIME.get(file_type, "application/octet-stream")
+    disposition = "inline" if file_type in _INLINE_MIME else "attachment"
+
+    await db.documents.update_one({"id": doc_id}, {"$inc": {"views": 1}})
+
+    if doc.get("storage") == "onedrive" and ONEDRIVE_ENABLED:
+        try:
+            file_bytes = await onedrive.download_file("documents", doc_id, f".{file_type}")
+            if file_bytes is None:
+                raise HTTPException(status_code=404, detail="File not found on cloud storage")
+            return Response(
+                content=file_bytes,
+                media_type=media_type,
+                headers={"Content-Disposition": f'{disposition}; filename="{doc["file_name"]}"'}
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"OneDrive view failed for document {doc_id}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load from cloud storage")
+
+    file_path = UPLOAD_DIR / "documents" / f"{doc_id}.{file_type}"
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        file_path,
+        media_type=media_type,
+        headers={"Content-Disposition": f'{disposition}; filename="{doc["file_name"]}"'}
+    )
+
+
 # ==================== COMENTÁRIOS ====================
 
 @router.get("/{doc_id}/comments", response_model=List[DocumentCommentResponse])

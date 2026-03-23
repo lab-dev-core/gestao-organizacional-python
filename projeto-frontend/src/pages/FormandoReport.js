@@ -54,11 +54,24 @@ const FormandoReport = () => {
       const headers = getAuthHeaders();
       let data = [];
       if (isAdmin) {
+        // Admin vê todos os usuários (exceto superadmin)
         const res = await axios.get(`${API_URL}/users`, { headers, params: { limit: 200 } });
-        data = res.data.filter(u => (u.roles || []).includes('user') || (u.roles || []).length === 0);
+        data = res.data.filter(u => {
+          const roles = u.roles || (u.role ? [u.role] : []);
+          return !roles.includes('superadmin');
+        });
       } else if (isFormador) {
-        const res = await axios.get(`${API_URL}/acompanhamentos/my-formandos`, { headers });
-        data = res.data;
+        try {
+          const res = await axios.get(`${API_URL}/acompanhamentos/my-formandos`, { headers });
+          data = res.data;
+        } catch {
+          // Fallback: se endpoint falhar, busca todos os usuários comuns
+          const res = await axios.get(`${API_URL}/users`, { headers, params: { limit: 200 } });
+          data = res.data.filter(u => {
+            const roles = u.roles || (u.role ? [u.role] : []);
+            return roles.includes('user') || roles.length === 0;
+          });
+        }
       } else {
         // Regular user - show their own report
         data = [user];
@@ -222,14 +235,22 @@ const FormandoReport = () => {
               <div className="flex-1">
                 <Select value={selectedFormando || ''} onValueChange={setSelectedFormando}>
                   <SelectTrigger className="w-full max-w-sm">
-                    <SelectValue placeholder="Selecione um formando..." />
+                    <SelectValue placeholder={formandos.length === 0 ? 'Nenhum formando encontrado' : 'Selecione um formando...'} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {formandos.map(f => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.full_name}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="max-h-72">
+                    {formandos.length === 0 ? (
+                      <div className="py-4 text-center text-sm text-muted-foreground">
+                        Nenhum formando disponível
+                      </div>
+                    ) : (
+                      formandos
+                        .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''))
+                        .map(f => (
+                          <SelectItem key={f.id} value={f.id}>
+                            {f.full_name}
+                          </SelectItem>
+                        ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

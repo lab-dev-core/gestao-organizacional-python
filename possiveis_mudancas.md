@@ -1,5 +1,5 @@
 Seção: Login
-[feito]- Possibilidade de fazer login com o nome de usuario ou CPF nao somente email
+[feito] - Possibilidade de fazer login com o nome de usuario ou CPF nao somente email
 [revisar] - Integração SSO (Google e Microsoft) "Google SSO não configurado. Configure GOOGLE_CLIENT_ID no servidor."
 [revisar] - Campo para recuperar senha "Nao recebi o email para verificar a senha"
 
@@ -13,13 +13,13 @@ Seção: Usuários
 
 Seção: Perfil
 - Não está sendo possível adicionar foto (não salva)
-    Novos campos:
-      - ⁠Estado Civil
-      - ⁠Possui filho? Se sim, numero e nomes (campo aberto talvez)
-      - Data de ingresso na comuniade (Data e em qual recanto foi acolhido como filho(a))
-      - ⁠É batizado? Fez primeira comunhão? Crisma?
-      - Faz acompanhamento médico psiquiatrico? toma medicação?
-      - faz acompanhamento psicológico?
+  Novos campos:
+    - Estado Civil
+    - Possui filho? Se sim, numero e nomes (campo aberto talvez)
+    - Data de ingresso na comunidade (Data e em qual recanto foi acolhido como filho(a))
+    - É batizado? Fez primeira comunhão? Crisma?
+    - Faz acompanhamento médico psiquiátrico? toma medicação?
+    - Faz acompanhamento psicológico?
 
 Seção: Documentos
 [revisar] - Visualizar no proprio navegador o arquivo sem ter a necessidade de fazer o download "Ao clicar em visualizar no navegador baixa um arquivo e nao abre"

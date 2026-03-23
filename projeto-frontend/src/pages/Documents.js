@@ -321,7 +321,7 @@ const DocumentsPage = () => {
     setViewerLoading(true);
     try {
       const headers = getAuthHeaders();
-      const response = await axios.get(`${API_URL}/documents/${doc.id}/download`, {
+      const response = await axios.get(`${API_URL}/documents/${doc.id}/view`, {
         headers,
         responseType: 'blob'
       });

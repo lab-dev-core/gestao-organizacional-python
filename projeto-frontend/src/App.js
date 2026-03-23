@@ -28,6 +28,7 @@ import ProfilePage from './pages/Profile';
 import TenantsPage from './pages/Tenants';
 import CertificatesPage from './pages/Certificates';
 import FormandoReport from './pages/FormandoReport';
+import FeriasPage from './pages/Ferias';
 
 import './App.css';
 
@@ -62,6 +63,7 @@ function App() {
                   <Route path="/profile" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
                   <Route path="/settings" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
                   <Route path="/relatorio-formando" element={<ErrorBoundary><FormandoReport /></ErrorBoundary>} />
+                  <Route path="/ferias" element={<ErrorBoundary><FeriasPage /></ErrorBoundary>} />
                 </Route>
 
                 {/* Redirects */}

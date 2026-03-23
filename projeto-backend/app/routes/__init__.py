@@ -3,7 +3,8 @@ from fastapi.routing import APIRouter
 from app.routes import (
     auth, users, locations, functions, formative_stages, documents, videos,
     acompanhamentos, audit, stats, files, tenants, user_journey, stage_cycles,
-    stage_participations, certificates, psychological_assessments, content_subcategories
+    stage_participations, certificates, psychological_assessments, content_subcategories,
+    ferias
 )
 
 
@@ -27,6 +28,7 @@ def _attach_routes(router: APIRouter) -> None:
     router.include_router(files.router, prefix="/uploads", tags=["Files"])
     router.include_router(user_journey.router, prefix="/user-journey", tags=["User Journey"])
     router.include_router(certificates.router, prefix="/certificates", tags=["Certificates"])
+    router.include_router(ferias.router, prefix="/ferias", tags=["Férias"])
 
 
 def setup_routes(app: FastAPI) -> None:

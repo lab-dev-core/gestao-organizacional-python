@@ -20,7 +20,8 @@ import {
   Route,
   CalendarDays,
   Award,
-  BarChart2
+  BarChart2,
+  Palmtree
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -41,6 +42,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: MessageSquare, label: 'Acompanhamentos', href: '/acompanhamentos' },
     { icon: Award, label: t('certificates'), href: '/certificates' },
     { icon: BarChart2, label: 'Relatório Formando', href: '/relatorio-formando' },
+    { icon: Palmtree, label: 'Férias', href: '/ferias' },
   ];
 
   const adminNavItems = [

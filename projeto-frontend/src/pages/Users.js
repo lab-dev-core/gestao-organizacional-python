@@ -243,6 +243,8 @@ const UsersPage = () => {
       : <ArrowDown className="w-3 h-3 ml-1 inline text-primary" />;
   };
 
+  const [locationFilter, setLocationFilter] = useState('all');
+
   const filteredUsers = users
     .filter(user => {
       const matchesSearch = user.full_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -251,7 +253,8 @@ const UsersPage = () => {
       const userRoles = user.roles || (user.role ? [user.role] : []);
       const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
       const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-      return matchesSearch && matchesRole && matchesStatus;
+      const matchesLocation = locationFilter === 'all' || user.location_id === locationFilter;
+      return matchesSearch && matchesRole && matchesStatus && matchesLocation;
     })
     .sort((a, b) => {
       let valA, valB;
@@ -611,6 +614,17 @@ const UsersPage = () => {
                 <SelectItem value="all">{t('all')}</SelectItem>
                 <SelectItem value="active">{t('active')}</SelectItem>
                 <SelectItem value="inactive">{t('inactive')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Recanto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os recantos</SelectItem>
+                {locations.map(loc => (
+                  <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

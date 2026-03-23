@@ -54,6 +54,7 @@ const ProfilePage = () => {
     marital_status: user?.marital_status || '',
     has_children: user?.has_children ?? null,
     children_count: user?.children_count ?? '',
+    children_names: user?.children_names || '',
 
     community_entry_date: user?.community_entry_date || '',
     community_entry_place: user?.community_entry_place || '',
@@ -312,6 +313,16 @@ const ProfilePage = () => {
                 </div>
               )}
             </div>
+            {formData.has_children === true && (
+              <div className="space-y-2">
+                <Label>Nomes dos filhos</Label>
+                <Input
+                  value={formData.children_names}
+                  onChange={(e) => handleChange('children_names', e.target.value)}
+                  placeholder="Ex: Maria, João, Ana..."
+                />
+              </div>
+            )}
 
             <Separator />
 

@@ -173,7 +173,7 @@ async def delete_subcategory(
 async def list_subcategory_videos(
     subcategory_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     current_user: dict = Depends(get_current_user)
 ):
     """Lista vídeos de uma subcategoria"""
@@ -196,7 +196,7 @@ async def list_subcategory_videos(
 async def list_subcategory_documents(
     subcategory_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     current_user: dict = Depends(get_current_user)
 ):
     """Lista documentos de uma subcategoria"""

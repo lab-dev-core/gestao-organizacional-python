@@ -31,7 +31,7 @@ async def get_my_formandos(current_user: dict = Depends(require_formador)):
 @router.get("", response_model=List[AcompanhamentoResponse])
 async def list_acompanhamentos(
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     user_id: Optional[str] = None,
     formative_stage_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)

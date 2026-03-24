@@ -96,7 +96,7 @@ async def check_document_access(document: dict, user_id: str) -> DocumentAccessS
 @router.get("", response_model=List[DocumentResponse])
 async def list_documents(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     search: Optional[str] = None,
     category: Optional[str] = None,
     subcategory_id: Optional[str] = None,
@@ -468,7 +468,7 @@ async def view_document_inline(doc_id: str, current_user: dict = Depends(get_cur
 async def list_document_comments(
     doc_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     current_user: dict = Depends(get_current_user)
 ):
     """Lista comentários de um documento"""

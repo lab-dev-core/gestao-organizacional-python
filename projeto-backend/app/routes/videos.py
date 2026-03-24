@@ -91,7 +91,7 @@ async def check_video_access(video: dict, user_id: str) -> VideoAccessStatus:
 @router.get("", response_model=List[VideoResponse])
 async def list_videos(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     search: Optional[str] = None,
     category: Optional[str] = None,
     subcategory_id: Optional[str] = None,
@@ -413,7 +413,7 @@ async def update_video_progress(
 async def list_video_comments(
     video_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     current_user: dict = Depends(get_current_user)
 ):
     """Lista comentários de um vídeo"""

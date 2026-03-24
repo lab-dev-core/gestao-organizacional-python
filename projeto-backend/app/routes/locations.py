@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("", response_model=List[LocationResponse])
 async def list_locations(
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     search: Optional[str] = None,
     status: Optional[UserStatus] = None,
     current_user: dict = Depends(get_current_user)

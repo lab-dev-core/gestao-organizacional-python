@@ -58,6 +58,7 @@ const ProfilePage = () => {
 
     community_entry_date: user?.community_entry_date || '',
     community_entry_place: user?.community_entry_place || '',
+    consecration_date: user?.consecration_date || '',
 
     sacraments: user?.sacraments || {
       baptism: false, baptism_date: '',
@@ -93,6 +94,7 @@ const ProfilePage = () => {
       if (!payload.marital_status) delete payload.marital_status;
       if (!payload.community_entry_date) delete payload.community_entry_date;
       if (!payload.community_entry_place) delete payload.community_entry_place;
+      if (!payload.consecration_date) delete payload.consecration_date;
       if (payload.children_count === '') delete payload.children_count;
       if (!payload.education_level) delete payload.education_level;
 
@@ -427,6 +429,14 @@ const ProfilePage = () => {
                   value={formData.community_entry_place || ''}
                   onChange={(e) => handleChange('community_entry_place', e.target.value)}
                   placeholder={t('communityEntryPlaceholder')}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data de consagração</Label>
+                <Input
+                  type="date"
+                  value={formData.consecration_date || ''}
+                  onChange={(e) => handleChange('consecration_date', e.target.value)}
                 />
               </div>
             </div>

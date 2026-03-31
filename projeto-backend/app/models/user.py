@@ -56,6 +56,7 @@ class UserBase(BaseModel):
     children_count: Optional[int] = None
     community_entry_date: Optional[str] = None   # Data de ingresso na comunidade
     community_entry_place: Optional[str] = None  # Recanto/local onde foi acolhido
+    consecration_date: Optional[str] = None      # Data de consagração
     sacraments: Optional[SacramentsModel] = None
 
     children_names: Optional[str] = None              # Nomes dos filhos (campo livre)
@@ -95,6 +96,7 @@ class UserUpdate(BaseModel):
     children_count: Optional[int] = None
     community_entry_date: Optional[str] = None
     community_entry_place: Optional[str] = None
+    consecration_date: Optional[str] = None
     sacraments: Optional[SacramentsModel] = None
     children_names: Optional[str] = None
 

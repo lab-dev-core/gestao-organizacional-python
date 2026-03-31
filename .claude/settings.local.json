@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
       "Bash(find /c/Users/Micro/OneDrive/Documentos/Projetos/gestao-organizacional-python/projeto-frontend/src/pages -name *.js -o -name *.jsx)",
-      "Bash(grep -E \"\\\\.js$\")"
+      "Bash(grep -E \"\\\\.js$\")",
+      "Bash(xargs grep:*)"
     ]
   }
 }

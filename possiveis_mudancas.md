@@ -38,8 +38,9 @@ Seção: Acompanhamento
 - Possibilidade de configuração de um cabeçalho e rodapé oficial da instituição para exportar os arquivos
 - Integração com IA ou ao menos possibilidade de Gravar o acompanhamento e a IA transcrever para auxiliar no registro
 
-Seção: Misc
-[revisar] - Relatorio individual do formando demonstrando a barra de progresso do quanto ele consumiu os arquivos e videos, numero de acompanhamentos feitos "Não abriu a lista suspensa com o nome dos formandos"
+Seção: Relatório do formando
+<img width="1402" height="813" alt="image" src="https://github.com/user-attachments/assets/02ade42f-028e-4364-a853-082309b8e5d3" />
+- Para um usuario cadastrado no ciclo auxiliar de missao e devidamente situado na etapa aparece progresso para consagracao permanente
 
 Implementações:
 - Relatórios formativos e avaliativos: Possibilitar a construção através de um formulário composto pelo formador fazer avaliações individuais e coletivas para serem respondidas dentro do proprio app para leitura de resultados com graficos e numeros, no caso de respostas quantitativas, ou resumos gerados por IA em respostas qualitativas.

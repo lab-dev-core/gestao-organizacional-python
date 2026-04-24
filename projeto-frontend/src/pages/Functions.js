@@ -203,14 +203,13 @@ const FunctionsPage = () => {
                 <TableRow>
                   <TableHead>{t('functionName')}</TableHead>
                   <TableHead>{t('description')}</TableHead>
-                  <TableHead>{t('hierarchyLevel')}</TableHead>
                   <TableHead className="text-right">{t('actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredFunctions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                       <Briefcase className="w-12 h-12 mx-auto mb-2 opacity-50" />
                       <p>Nenhuma função encontrada</p>
                     </TableCell>
@@ -222,7 +221,6 @@ const FunctionsPage = () => {
                       <TableCell className="text-muted-foreground max-w-md truncate">
                         {func.description || '-'}
                       </TableCell>
-                      <TableCell>{func.hierarchy_level || 0}</TableCell>
                       <TableCell className="text-right">
                         {isAdmin && (
                           <div className="flex items-center justify-end gap-1">

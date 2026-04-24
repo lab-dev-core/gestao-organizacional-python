@@ -7,7 +7,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -215,7 +214,6 @@ const FormativeStagesPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('order')}</TableHead>
                   <TableHead>{t('stageName')}</TableHead>
                   <TableHead>{t('description')}</TableHead>
                   <TableHead>{t('estimatedDuration')}</TableHead>
@@ -225,7 +223,7 @@ const FormativeStagesPage = () => {
               <TableBody>
                 {filteredStages.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       <GraduationCap className="w-12 h-12 mx-auto mb-2 opacity-50" />
                       <p>Nenhuma etapa encontrada</p>
                     </TableCell>
@@ -233,9 +231,6 @@ const FormativeStagesPage = () => {
                 ) : (
                   filteredStages.map(stage => (
                     <TableRow key={stage.id} data-testid={`stage-row-${stage.id}`}>
-                      <TableCell>
-                        <Badge variant="secondary">{stage.order}</Badge>
-                      </TableCell>
                       <TableCell className="font-medium">{stage.name}</TableCell>
                       <TableCell className="text-muted-foreground max-w-md truncate">
                         {stage.description || '-'}

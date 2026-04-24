@@ -21,6 +21,9 @@ class AcompanhamentoBase(BaseModel):
     frequency: AcompanhamentoFrequency = AcompanhamentoFrequency.BIWEEKLY
     status: AcompanhamentoStatus = AcompanhamentoStatus.REALIZADO
     next_acompanhamento_date: Optional[str] = None
+    next_steps: Optional[str] = None
+    avaliacao: Optional[str] = None          # verde | amarelo | vermelho
+    tags: Optional[List[str]] = []
 
 
 class AcompanhamentoCreate(AcompanhamentoBase):
@@ -36,6 +39,9 @@ class AcompanhamentoUpdate(BaseModel):
     formative_stage_id: Optional[str] = None
     status: Optional[AcompanhamentoStatus] = None
     next_acompanhamento_date: Optional[str] = None
+    next_steps: Optional[str] = None
+    avaliacao: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class AcompanhamentoResponse(AcompanhamentoBase):

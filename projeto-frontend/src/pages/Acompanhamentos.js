@@ -44,7 +44,10 @@ const AcompanhamentosPage = () => {
     frequency: 'biweekly',
     formative_stage_id: '',
     status: 'realizado',
-    next_acompanhamento_date: ''
+    next_acompanhamento_date: '',
+    next_steps: '',
+    avaliacao: '',
+    tags: []
   });
 
   const canManage = isAdmin || isFormador;
@@ -98,7 +101,10 @@ const AcompanhamentosPage = () => {
       frequency: 'biweekly',
       formative_stage_id: selectedStage?.id || '',
       status: 'realizado',
-      next_acompanhamento_date: ''
+      next_acompanhamento_date: '',
+      next_steps: '',
+      avaliacao: '',
+      tags: []
     });
     setEditingAcomp(null);
   };
@@ -115,7 +121,10 @@ const AcompanhamentosPage = () => {
         frequency: acomp.frequency,
         formative_stage_id: acomp.formative_stage_id || '',
         status: acomp.status || 'realizado',
-        next_acompanhamento_date: acomp.next_acompanhamento_date || ''
+        next_acompanhamento_date: acomp.next_acompanhamento_date || '',
+        next_steps: acomp.next_steps || '',
+        avaliacao: acomp.avaliacao || '',
+        tags: acomp.tags || []
       });
     } else {
       resetForm();
@@ -252,6 +261,31 @@ const AcompanhamentosPage = () => {
       case 'cancelado': return { label: 'Cancelado', icon: XCircle, className: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400' };
       default: return { label: 'Realizado', icon: CheckCircle2, className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400' };
     }
+  };
+
+  const getAvaliacaoConfig = (avaliacao) => {
+    switch (avaliacao) {
+      case 'verde': return { label: 'Bom', dot: 'bg-green-500', badge: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400' };
+      case 'amarelo': return { label: 'Atenção', dot: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400' };
+      case 'vermelho': return { label: 'Crítico', dot: 'bg-red-500', badge: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400' };
+      default: return null;
+    }
+  };
+
+  const AVAILABLE_TAGS = [
+    { value: 'espiritual', label: 'Espiritual' },
+    { value: 'pessoal', label: 'Pessoal' },
+    { value: 'formativo', label: 'Formativo' },
+    { value: 'saude', label: 'Saúde' },
+  ];
+
+  const toggleTag = (tag) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.includes(tag)
+        ? prev.tags.filter(t => t !== tag)
+        : [...prev.tags, tag]
+    }));
   };
 
   // Get acompanhamentos for selected stage
@@ -479,6 +513,24 @@ const AcompanhamentosPage = () => {
                         <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
                           {acomp.content}
                         </p>
+                        {(acomp.avaliacao || (acomp.tags && acomp.tags.length > 0)) && (
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {acomp.avaliacao && (() => {
+                              const av = getAvaliacaoConfig(acomp.avaliacao);
+                              return av ? (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${av.badge}`}>
+                                  <span className={`w-2 h-2 rounded-full ${av.dot}`} />
+                                  {av.label}
+                                </span>
+                              ) : null;
+                            })()}
+                            {acomp.tags?.map(tag => (
+                              <Badge key={tag} variant="secondary" className="text-xs capitalize">
+                                {AVAILABLE_TAGS.find(t => t.value === tag)?.label || tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -566,11 +618,49 @@ const AcompanhamentosPage = () => {
               
               <div>
                 <Label className="text-sm text-muted-foreground">Relatório do Acompanhamento</Label>
-                <div className="mt-2 p-4 bg-muted/30 rounded-lg whitespace-pre-wrap">
+                <div className="mt-2 p-4 bg-muted/30 rounded-lg whitespace-pre-wrap text-sm">
                   {viewingAcomp.content}
                 </div>
               </div>
-              
+
+              {viewingAcomp.next_steps && (
+                <div>
+                  <Label className="text-sm text-muted-foreground">Próximos Passos / Encaminhamentos</Label>
+                  <div className="mt-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg whitespace-pre-wrap text-sm">
+                    {viewingAcomp.next_steps}
+                  </div>
+                </div>
+              )}
+
+              {(viewingAcomp.avaliacao || (viewingAcomp.tags && viewingAcomp.tags.length > 0)) && (
+                <div className="flex flex-wrap items-center gap-4">
+                  {viewingAcomp.avaliacao && (() => {
+                    const av = getAvaliacaoConfig(viewingAcomp.avaliacao);
+                    return av ? (
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Avaliação</Label>
+                        <div className={`mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${av.badge}`}>
+                          <span className={`w-2 h-2 rounded-full ${av.dot}`} />
+                          {av.label}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                  {viewingAcomp.tags && viewingAcomp.tags.length > 0 && (
+                    <div>
+                      <Label className="text-sm text-muted-foreground">Categorias</Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {viewingAcomp.tags.map(tag => (
+                          <Badge key={tag} variant="secondary" className="text-xs capitalize">
+                            {AVAILABLE_TAGS.find(t => t.value === tag)?.label || tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Attachments Section */}
               {canManage && (
                 <div className="pt-4 border-t space-y-3">
@@ -819,10 +909,73 @@ const AcompanhamentosPage = () => {
                       value={formData.content}
                       onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                       placeholder={formData.status === 'agendado' ? 'Pauta ou observações para o encontro...' : 'Descreva os pontos discutidos, progresso do formando, observações importantes...'}
-                      rows={6}
+                      rows={5}
                       required={formData.status !== 'agendado'}
                       data-testid="acomp-content-input"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Avaliação Geral</Label>
+                    <Select
+                      value={formData.avaliacao}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, avaliacao: v }))}
+                    >
+                      <SelectTrigger data-testid="acomp-avaliacao-select">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="verde">
+                          <span className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />
+                            Bom
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="amarelo">
+                          <span className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" />
+                            Atenção
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="vermelho">
+                          <span className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
+                            Crítico
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Próximos Passos / Encaminhamentos</Label>
+                    <Textarea
+                      value={formData.next_steps}
+                      onChange={(e) => setFormData(prev => ({ ...prev, next_steps: e.target.value }))}
+                      placeholder="O que ficou combinado para o formando realizar..."
+                      rows={3}
+                      data-testid="acomp-next-steps-input"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Categorias</Label>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {AVAILABLE_TAGS.map(tag => (
+                        <button
+                          key={tag.value}
+                          type="button"
+                          onClick={() => toggleTag(tag.value)}
+                          className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                            formData.tags.includes(tag.value)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-muted/50 text-muted-foreground border-border hover:border-primary/50'
+                          }`}
+                        >
+                          {tag.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="p-3 bg-muted/50 rounded-lg">
@@ -939,7 +1092,27 @@ const AcompanhamentosPage = () => {
                     <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
                       {acomp.content}
                     </p>
-                    
+
+                    {/* Avaliacao + Tags row */}
+                    {(acomp.avaliacao || (acomp.tags && acomp.tags.length > 0)) && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        {acomp.avaliacao && (() => {
+                          const av = getAvaliacaoConfig(acomp.avaliacao);
+                          return av ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${av.badge}`}>
+                              <span className={`w-2 h-2 rounded-full ${av.dot}`} />
+                              {av.label}
+                            </span>
+                          ) : null;
+                        })()}
+                        {acomp.tags?.map(tag => (
+                          <Badge key={tag} variant="secondary" className="text-xs capitalize">
+                            {AVAILABLE_TAGS.find(t => t.value === tag)?.label || tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Actions */}
                     {canManage && (
                       <div className="flex items-center gap-2 mt-4 pt-3 border-t" onClick={(e) => e.stopPropagation()}>

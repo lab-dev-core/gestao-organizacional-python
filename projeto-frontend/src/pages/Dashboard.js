@@ -8,7 +8,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import { Users, FileText, Video, MapPin, Briefcase, GraduationCap, Activity, TrendingUp, Cake, Heart, AlertTriangle, CalendarClock, ChevronRight } from 'lucide-react';
+import { Users, FileText, Video, MapPin, Briefcase, GraduationCap, Activity, TrendingUp, Cake, Heart, AlertTriangle, CalendarClock, ChevronRight, ClipboardList, MessageSquare } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -18,17 +18,20 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [alerts, setAlerts] = useState(null);
+  const [stageDistribution, setStageDistribution] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
     try {
       const headers = getAuthHeaders();
-      const [statsRes, alertsRes] = await Promise.allSettled([
+      const [statsRes, alertsRes, stageDistRes] = await Promise.allSettled([
         axios.get(`${API_URL}/stats/dashboard`, { headers }),
         (isAdmin || isFormador) ? axios.get(`${API_URL}/stats/alerts`, { headers }) : Promise.resolve(null),
+        (isAdmin || isFormador) ? axios.get(`${API_URL}/user-journey/stats/by-stage`, { headers }) : Promise.resolve(null),
       ]);
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
       if (alertsRes.status === 'fulfilled' && alertsRes.value) setAlerts(alertsRes.value.data);
+      if (stageDistRes.status === 'fulfilled' && stageDistRes.value) setStageDistribution(stageDistRes.value.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
     } finally {
@@ -242,6 +245,91 @@ const Dashboard = () => {
         <StatCard icon={Video} title={t('totalVideos')} value={stats?.content?.videos || 0} color="bg-amber-600" />
         <StatCard icon={MapPin} title={t('locations')} value={stats?.organization?.locations || 0} color="bg-rose-600" />
       </div>
+
+      {/* Actionable Cards for Formador/Admin */}
+      {(isAdmin || isFormador) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Card
+            className="border-0 shadow-md cursor-pointer card-hover"
+            onClick={() => navigate('/acompanhamentos')}
+            data-testid="acomps-week-card"
+          >
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Acompanhamentos esta semana</p>
+                  <p className="text-4xl font-bold mt-1 text-primary">
+                    {stats?.acompanhamentos?.this_week ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Clique para gerenciar</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-primary/10">
+                  <MessageSquare className="w-7 h-7 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-0 shadow-md cursor-pointer card-hover"
+            onClick={() => navigate('/formador-dashboard')}
+            data-testid="overdue-acomps-card"
+          >
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Formandos sem acompanhamento</p>
+                  <p className={`text-4xl font-bold mt-1 ${(alerts?.overdue_acompanhamentos?.length || 0) > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                    {alerts?.overdue_acompanhamentos?.length ?? '—'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Nos últimos 30 dias</p>
+                </div>
+                <div className={`p-4 rounded-2xl ${(alerts?.overdue_acompanhamentos?.length || 0) > 0 ? 'bg-red-50 dark:bg-red-950/30' : 'bg-green-50 dark:bg-green-950/30'}`}>
+                  <ClipboardList className={`w-7 h-7 ${(alerts?.overdue_acompanhamentos?.length || 0) > 0 ? 'text-red-500' : 'text-green-600'}`} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Stage Distribution Chart */}
+      {(isAdmin || isFormador) && stageDistribution && stageDistribution.stages?.length > 0 && (
+        <Card className="border-0 shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              Distribuição por Etapa Formativa
+              {stageDistribution.users_without_stage > 0 && (
+                <Badge variant="outline" className="ml-auto text-xs font-normal">
+                  {stageDistribution.users_without_stage} sem etapa
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(() => {
+              const maxCount = Math.max(...stageDistribution.stages.map(s => s.user_count), 1);
+              return stageDistribution.stages.map(s => (
+                <div key={s.stage_id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium truncate max-w-[60%]">{s.stage_name}</span>
+                    <span className="text-muted-foreground shrink-0">
+                      {s.user_count} {s.user_count === 1 ? 'membro' : 'membros'}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-500"
+                      style={{ width: `${(s.user_count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ));
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Secondary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

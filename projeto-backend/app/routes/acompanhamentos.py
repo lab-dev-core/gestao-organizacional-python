@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 import uuid
 import os
@@ -8,7 +8,7 @@ import shutil
 
 from app.database import db
 from app.models import AcompanhamentoCreate, AcompanhamentoUpdate, AcompanhamentoResponse
-from app.models.enums import UserRole, UserStatus
+from app.models.enums import UserRole, UserStatus, AcompanhamentoStatus
 from app.utils.security import get_current_user, require_formador, get_tenant_filter
 from app.utils.audit import log_action
 from app.services.pdf import generate_acompanhamento_pdf
@@ -26,6 +26,119 @@ async def get_my_formandos(current_user: dict = Depends(require_formador)):
         {"_id": 0, "password": 0}
     ).to_list(1000)
     return formandos
+
+
+@router.get("/formador-overview")
+async def get_formador_overview(
+    days_threshold: int = Query(30, ge=1, le=365),
+    current_user: dict = Depends(require_formador)
+):
+    """
+    Dashboard do formador: formandos com último acompanhamento, agendados
+    e atenção necessária (sem acompanhamento nos últimos X dias).
+    """
+    tenant_filter = get_tenant_filter(current_user)
+    roles = current_user.get("roles", [])
+    is_admin = UserRole.ADMIN in roles or UserRole.SUPERADMIN in roles
+
+    # Formandos sob responsabilidade
+    formandos_query = {**tenant_filter, "status": UserStatus.ACTIVE}
+    if not is_admin:
+        formandos_query["formador_id"] = current_user["id"]
+
+    formandos = await db.users.find(
+        formandos_query,
+        {"_id": 0, "id": 1, "full_name": 1, "formative_stage_id": 1, "formador_id": 1}
+    ).to_list(1000)
+
+    if not formandos:
+        return {"formandos": [], "upcoming": [], "attention": [], "scheduled_today": []}
+
+    formando_ids = [f["id"] for f in formandos]
+
+    # Buscar todos acompanhamentos dos formandos em batch
+    acomp_query = {**tenant_filter, "user_id": {"$in": formando_ids}}
+    if not is_admin:
+        acomp_query["formador_id"] = current_user["id"]
+
+    all_acomps = await db.acompanhamentos.find(
+        acomp_query,
+        {"_id": 0, "id": 1, "user_id": 1, "user_name": 1, "date": 1, "time": 1,
+         "location": 1, "status": 1, "next_acompanhamento_date": 1, "formative_stage_id": 1}
+    ).sort("date", -1).to_list(10000)
+
+    # Buscar nomes das etapas em batch
+    stage_ids = list({f.get("formative_stage_id") for f in formandos if f.get("formative_stage_id")})
+    stages_map = {}
+    if stage_ids:
+        stages = await db.formative_stages.find(
+            {"id": {"$in": stage_ids}}, {"_id": 0, "id": 1, "name": 1}
+        ).to_list(len(stage_ids))
+        stages_map = {s["id"]: s["name"] for s in stages}
+
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    threshold_date = (now - timedelta(days=days_threshold)).strftime("%Y-%m-%d")
+    week_end = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+
+    # Indexar último acompanhamento realizado por formando
+    last_by_user: dict = {}
+    for ac in all_acomps:
+        uid = ac["user_id"]
+        status = ac.get("status", AcompanhamentoStatus.REALIZADO)
+        if status == AcompanhamentoStatus.REALIZADO or status == "realizado":
+            if uid not in last_by_user or ac["date"] > last_by_user[uid]["date"]:
+                last_by_user[uid] = ac
+
+    # Acompanhamentos agendados: hoje e próximos 7 dias
+    upcoming = []
+    scheduled_today = []
+    for ac in all_acomps:
+        status = ac.get("status", "")
+        if status in (AcompanhamentoStatus.AGENDADO, "agendado"):
+            if ac["date"] == today_str:
+                scheduled_today.append(ac)
+            elif today_str < ac["date"] <= week_end:
+                upcoming.append(ac)
+
+    # Montar lista de formandos com info de último acompanhamento
+    formandos_info = []
+    attention = []
+    for f in formandos:
+        fid = f["id"]
+        last = last_by_user.get(fid)
+        last_date = last["date"] if last else None
+        days_since = None
+        if last_date:
+            try:
+                ld = datetime.strptime(last_date, "%Y-%m-%d")
+                days_since = (now.replace(tzinfo=None) - ld).days
+            except ValueError:
+                pass
+
+        entry = {
+            "id": fid,
+            "full_name": f["full_name"],
+            "formative_stage_id": f.get("formative_stage_id"),
+            "stage_name": stages_map.get(f.get("formative_stage_id", ""), ""),
+            "last_acompanhamento_date": last_date,
+            "days_since_last": days_since,
+            "needs_attention": last_date is None or last_date < threshold_date,
+        }
+        formandos_info.append(entry)
+        if entry["needs_attention"]:
+            attention.append(entry)
+
+    # Ordenar: atenção primeiro, depois por dias sem acompanhamento (desc)
+    formandos_info.sort(key=lambda x: (not x["needs_attention"], -(x["days_since_last"] or 9999)))
+
+    return {
+        "formandos": formandos_info,
+        "upcoming": sorted(upcoming, key=lambda x: (x["date"], x.get("time", ""))),
+        "scheduled_today": sorted(scheduled_today, key=lambda x: x.get("time", "")),
+        "attention": attention,
+        "days_threshold": days_threshold,
+    }
 
 
 @router.get("", response_model=List[AcompanhamentoResponse])

@@ -29,6 +29,7 @@ import TenantsPage from './pages/Tenants';
 import CertificatesPage from './pages/Certificates';
 import FormandoReport from './pages/FormandoReport';
 import FeriasPage from './pages/Ferias';
+import FormadorDashboard from './pages/FormadorDashboard';
 
 import './App.css';
 
@@ -64,6 +65,7 @@ function App() {
                   <Route path="/settings" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
                   <Route path="/relatorio-formando" element={<ErrorBoundary><FormandoReport /></ErrorBoundary>} />
                   <Route path="/ferias" element={<ErrorBoundary><FeriasPage /></ErrorBoundary>} />
+                  <Route path="/formador-dashboard" element={<ErrorBoundary><FormadorDashboard /></ErrorBoundary>} />
                 </Route>
 
                 {/* Redirects */}

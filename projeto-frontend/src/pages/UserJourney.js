@@ -18,7 +18,7 @@ import { Progress } from '../components/ui/progress';
 import { JourneyTimeline } from '../components/ui/journey-timeline';
 import {
   Search, Users, GraduationCap, Plus, Eye, Calendar, User, ArrowRight,
-  BarChart3, CheckCircle, XCircle, Clock, UserPlus, Play
+  BarChart3, CheckCircle, XCircle, Clock, UserPlus, Play, History, GitBranch
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,6 +38,7 @@ const UserJourneyPage = () => {
   // Modal de visualização de jornada
   const [selectedUser, setSelectedUser] = useState(null);
   const [userJourney, setUserJourney] = useState(null);
+  const [stageHistory, setStageHistory] = useState([]);
   const [journeyDialogOpen, setJourneyDialogOpen] = useState(false);
   const [loadingJourney, setLoadingJourney] = useState(false);
 
@@ -87,11 +88,16 @@ const UserJourneyPage = () => {
     setSelectedUser(user);
     setLoadingJourney(true);
     setJourneyDialogOpen(true);
+    setStageHistory([]);
 
     try {
       const headers = getAuthHeaders();
-      const response = await axios.get(`${API_URL}/stage-participations/user/${user.id}/journey`, { headers });
-      setUserJourney(response.data);
+      const [journeyRes, historyRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/stage-participations/user/${user.id}/journey`, { headers }),
+        axios.get(`${API_URL}/user-journey/user/${user.id}`, { headers }),
+      ]);
+      if (journeyRes.status === 'fulfilled') setUserJourney(journeyRes.value.data);
+      if (historyRes.status === 'fulfilled') setStageHistory(historyRes.value.data || []);
     } catch (error) {
       console.error('Error fetching journey:', error);
       toast.error(t('errorOccurred'));
@@ -536,6 +542,69 @@ const UserJourneyPage = () => {
                   <div className="text-center py-8 text-muted-foreground">
                     <GraduationCap className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>{t('noParticipations')}</p>
+                  </div>
+                )}
+
+                {/* Stage Transition History */}
+                {stageHistory.length > 0 && (
+                  <div className="pt-6 border-t">
+                    <h4 className="font-medium mb-4 flex items-center gap-2">
+                      <History className="w-4 h-4 text-primary" />
+                      Histórico de Progressão de Etapa
+                    </h4>
+                    <div className="relative pl-5">
+                      {/* Vertical line */}
+                      <div className="absolute left-2 top-2 bottom-2 w-px bg-border" />
+                      <div className="space-y-4">
+                        {stageHistory.map((record, idx) => (
+                          <div key={record.id} className="relative">
+                            {/* Dot */}
+                            <div className={`absolute -left-3.5 top-1 w-3 h-3 rounded-full border-2 border-background ${idx === 0 ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                            <div className="ml-2 p-3 rounded-lg bg-muted/40 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {record.from_stage_name ? (
+                                  <>
+                                    <Badge variant="outline" className="text-xs">{record.from_stage_name}</Badge>
+                                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">Início —</span>
+                                )}
+                                <Badge className="text-xs bg-primary/10 text-primary border-primary/30">
+                                  {record.to_stage_name}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {formatDate(record.transition_date)}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  por {record.changed_by_name}
+                                </span>
+                              </div>
+                              {record.notes && (
+                                <p className="text-xs text-muted-foreground italic mt-1">"{record.notes}"</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {stageHistory.length === 0 && userJourney && (
+                  <div className="pt-6 border-t">
+                    <h4 className="font-medium mb-3 flex items-center gap-2 text-muted-foreground">
+                      <History className="w-4 h-4" />
+                      Histórico de Progressão de Etapa
+                    </h4>
+                    <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                      <GitBranch className="w-4 h-4 opacity-50" />
+                      Nenhuma transição de etapa registrada para este formando.
+                    </div>
                   </div>
                 )}
               </div>

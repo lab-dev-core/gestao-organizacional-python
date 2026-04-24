@@ -294,7 +294,6 @@ const VideosPage = () => {
             </Button>
             <div>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{selectedStage.order}</Badge>
                 <h1 className="text-2xl font-bold tracking-tight">{selectedStage.name}</h1>
               </div>
               <p className="text-muted-foreground mt-1">
@@ -429,7 +428,6 @@ const VideosPage = () => {
                       : <Lock className="w-8 h-8 text-muted-foreground" />
                     }
                   </div>
-                  <Badge variant="secondary" className="text-lg px-3 py-1">{stage.order}</Badge>
                 </div>
 
                 <div className="mt-4">

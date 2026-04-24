@@ -30,6 +30,8 @@ import CertificatesPage from './pages/Certificates';
 import FormandoReport from './pages/FormandoReport';
 import FeriasPage from './pages/Ferias';
 import FormadorDashboard from './pages/FormadorDashboard';
+import AnnouncementsPage from './pages/Announcements';
+import QuizzesPage from './pages/Quizzes';
 
 import './App.css';
 
@@ -66,6 +68,8 @@ function App() {
                   <Route path="/relatorio-formando" element={<ErrorBoundary><FormandoReport /></ErrorBoundary>} />
                   <Route path="/ferias" element={<ErrorBoundary><FeriasPage /></ErrorBoundary>} />
                   <Route path="/formador-dashboard" element={<ErrorBoundary><FormadorDashboard /></ErrorBoundary>} />
+                  <Route path="/announcements" element={<ErrorBoundary><AnnouncementsPage /></ErrorBoundary>} />
+                  <Route path="/quizzes" element={<ErrorBoundary><QuizzesPage /></ErrorBoundary>} />
                 </Route>
 
                 {/* Redirects */}

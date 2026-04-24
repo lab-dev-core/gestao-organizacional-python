@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Progress } from '../components/ui/progress';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Pencil, Trash2, Loader2, Palmtree, Settings, CalendarDays, User } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Palmtree, Settings, CalendarDays, User, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -171,6 +171,17 @@ const FeriasPage = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Erro ao remover');
+    }
+  };
+
+  const handleQuickStatus = async (id, status) => {
+    try {
+      const headers = getAuthHeaders();
+      await axios.put(`${API_URL}/ferias/${id}`, { status }, { headers });
+      toast.success(`Status atualizado para ${STATUS_LABELS[status]}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Erro ao atualizar status');
     }
   };
 
@@ -344,6 +355,39 @@ const FeriasPage = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {canManage && f.status === 'pendente' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                title="Aprovar"
+                                onClick={() => handleQuickStatus(f.id, 'aprovado')}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Cancelar"
+                                onClick={() => handleQuickStatus(f.id, 'cancelado')}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                          {canManage && f.status === 'aprovado' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title="Marcar como Em Andamento"
+                              onClick={() => handleQuickStatus(f.id, 'em_andamento')}
+                            >
+                              <Clock className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(f)}>
                             <Pencil className="w-4 h-4" />
                           </Button>

@@ -16,7 +16,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
 import { Switch } from '../components/ui/switch';
-import { Plus, Search, Pencil, Trash2, Users, Loader2, Eye, EyeOff, ArrowUpDown, ArrowUp, ArrowDown, Heart, Church, Stethoscope } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, Loader2, Eye, EyeOff, ArrowUpDown, ArrowUp, ArrowDown, Heart, Church, Stethoscope, Upload, Download, CheckCircle2, XCircle, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -61,6 +61,10 @@ const UsersPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -254,6 +258,42 @@ const UsersPage = () => {
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const url = `${API_URL}/users/import/template`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'template_usuarios.csv');
+    // Add auth header via axios then create blob
+    axios.get(url, { headers: getAuthHeaders(), responseType: 'blob' }).then(res => {
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+      link.href = blobUrl;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    }).catch(() => toast.error('Erro ao baixar template'));
+  };
+
+  const handleImportCsv = async () => {
+    if (!importFile) { toast.error('Selecione um arquivo CSV'); return; }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const headers = getAuthHeaders();
+      const fd = new FormData();
+      fd.append('file', importFile);
+      const res = await axios.post(`${API_URL}/users/import/csv`, fd, {
+        headers: { ...headers, 'Content-Type': 'multipart/form-data' }
+      });
+      setImportResult(res.data);
+      if (res.data.created > 0) fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Erro na importação');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const getInitials = (name) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -348,6 +388,11 @@ const UsersPage = () => {
         </div>
 
         {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => { setImportResult(null); setImportFile(null); setImportDialogOpen(true); }} data-testid="import-csv-btn">
+              <Upload className="w-4 h-4 mr-2" />
+              Importar CSV
+            </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => handleOpenDialog()} data-testid="new-user-btn">
@@ -761,8 +806,107 @@ const UsersPage = () => {
               </ScrollArea>
             </DialogContent>
           </Dialog>
+          </div>
         )}
       </div>
+
+      {/* CSV Import Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={(open) => { setImportDialogOpen(open); if (!open) { setImportResult(null); setImportFile(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5" />
+              Importar Usuários via CSV
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!importResult ? (
+              <>
+                <div className="p-4 bg-muted/30 rounded-lg space-y-2 text-sm">
+                  <p className="font-medium">Como usar:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Baixe o template CSV com os campos corretos</li>
+                    <li>Preencha os dados dos usuários</li>
+                    <li>Faça o upload do arquivo preenchido</li>
+                  </ol>
+                  <Button variant="outline" size="sm" className="mt-2" onClick={handleDownloadTemplate}>
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Baixar Template CSV
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Arquivo CSV *</Label>
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={e => setImportFile(e.target.files?.[0] || null)}
+                  />
+                  <p className="text-xs text-muted-foreground">Colunas: full_name, email, phone, cpf, birth_date, role, formative_stage_id, location_id, function_id, formador_id</p>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setImportDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleImportCsv} disabled={importing || !importFile}>
+                    {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                    Importar
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 bg-muted/30 rounded-lg">
+                    <p className="text-2xl font-bold">{importResult.total}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                    <p className="text-2xl font-bold text-green-600">{importResult.created}</p>
+                    <p className="text-xs text-muted-foreground">Criados</p>
+                  </div>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-lg">
+                    <p className="text-2xl font-bold text-red-600">{importResult.failed}</p>
+                    <p className="text-xs text-muted-foreground">Falhas</p>
+                  </div>
+                </div>
+
+                {importResult.created_users?.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium flex items-center gap-1"><CheckCircle2 className="w-4 h-4 text-green-600" /> Usuários criados</p>
+                    <ScrollArea className="max-h-36 border rounded-lg p-2">
+                      {importResult.created_users.map((u, i) => (
+                        <div key={i} className="text-xs py-1 border-b last:border-0">
+                          <span className="font-medium">{u.full_name}</span>
+                          <span className="text-muted-foreground"> — {u.email}</span>
+                          <span className="text-amber-600"> — Senha: {u.generated_password}</span>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                    <p className="text-xs text-amber-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Anote as senhas geradas antes de fechar.</p>
+                  </div>
+                )}
+
+                {importResult.errors?.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium flex items-center gap-1"><XCircle className="w-4 h-4 text-red-600" /> Erros</p>
+                    <ScrollArea className="max-h-28 border rounded-lg p-2">
+                      {importResult.errors.map((e, i) => (
+                        <div key={i} className="text-xs py-1 border-b last:border-0 text-red-600">
+                          Linha {e.row}: {e.email || '—'} — {e.error}
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button onClick={() => { setImportDialogOpen(false); setImportResult(null); setImportFile(null); }}>Fechar</Button>
+                </DialogFooter>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters */}
       <Card className="border-0 shadow-md">

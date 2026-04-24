@@ -22,7 +22,9 @@ import {
   Award,
   BarChart2,
   Palmtree,
-  LayoutList
+  LayoutList,
+  Megaphone,
+  ListChecks
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -44,6 +46,8 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: Award, label: t('certificates'), href: '/certificates' },
     { icon: BarChart2, label: 'Relatório Formando', href: '/relatorio-formando' },
     { icon: Palmtree, label: 'Férias', href: '/ferias' },
+    { icon: Megaphone, label: 'Comunicados', href: '/announcements' },
+    { icon: ListChecks, label: 'Questionários', href: '/quizzes' },
   ];
 
   const formadorNavItems = [

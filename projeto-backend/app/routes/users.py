@@ -1,8 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 import asyncio
+import csv
+import io
+import secrets
 import uuid
 
 from app.database import db
@@ -11,7 +15,8 @@ from app.models import UserCreate, UserUpdate, UserResponse
 from app.models.enums import UserRole, UserStatus
 from app.utils.security import (
     get_current_user, require_admin,
-    get_tenant_filter, normalize_user_roles, get_user_roles
+    get_tenant_filter, normalize_user_roles, get_user_roles,
+    hash_password
 )
 from app.services.user_service import user_service
 
@@ -104,6 +109,148 @@ async def update_user(
     current_user: dict = Depends(get_current_user)
 ):
     return await user_service.update_user(user_id, user_data, actor=current_user)
+
+
+@router.get("/import/template")
+async def get_import_template(current_user: dict = Depends(get_current_user)):
+    """Return a CSV template file for bulk user import."""
+    headers = [
+        "full_name", "email", "phone", "cpf", "birth_date",
+        "role", "formative_stage_id", "location_id", "function_id",
+        "formador_id", "notes"
+    ]
+    example_rows = [
+        [
+            "Maria Silva", "maria.silva@exemplo.com", "(11) 91234-5678",
+            "123.456.789-00", "1990-05-15", "user", "", "", "", "", "Importada via CSV"
+        ],
+        [
+            "João Santos", "joao.santos@exemplo.com", "(21) 98765-4321",
+            "987.654.321-00", "1985-11-22", "formador", "", "", "", "", ""
+        ],
+    ]
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(example_rows)
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=\"template_usuarios.csv\""}
+    )
+
+
+@router.post("/import/csv")
+async def import_users_csv(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_admin)
+):
+    """Bulk import users from a CSV file. Returns created users with generated passwords."""
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File encoding not supported. Please use UTF-8.")
+
+    tenant_id = current_user.get("tenant_id")
+    now = datetime.now(timezone.utc).isoformat()
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    total = 0
+    created = 0
+    failed = 0
+    errors = []
+    created_users = []
+
+    for row_index, row in enumerate(reader, start=2):  # start=2: row 1 is header
+        total += 1
+
+        full_name = (row.get("full_name") or "").strip()
+        email = (row.get("email") or "").strip().lower()
+
+        # Validate required fields
+        if not full_name:
+            errors.append({"row": row_index, "email": email or "(empty)", "error": "full_name is required"})
+            failed += 1
+            continue
+
+        if not email:
+            errors.append({"row": row_index, "email": "(empty)", "error": "email is required"})
+            failed += 1
+            continue
+
+        # Check email uniqueness
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            errors.append({"row": row_index, "email": email, "error": "Email already exists"})
+            failed += 1
+            continue
+
+        # Parse role(s) — default to ["user"]
+        role_str = (row.get("role") or "").strip().lower()
+        if role_str:
+            # Support comma-separated roles
+            raw_roles = [r.strip() for r in role_str.split(",") if r.strip()]
+            valid_roles = [r for r in raw_roles if r in {e.value for e in UserRole}]
+            roles = valid_roles if valid_roles else ["user"]
+        else:
+            roles = ["user"]
+
+        # Generate a random password
+        generated_password = secrets.token_urlsafe(8)
+        hashed = hash_password(generated_password)
+
+        user_dict = {
+            "id": str(uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "full_name": full_name,
+            "email": email,
+            "password": hashed,
+            "phone": (row.get("phone") or "").strip() or None,
+            "cpf": (row.get("cpf") or "").strip() or None,
+            "birth_date": (row.get("birth_date") or "").strip() or None,
+            "roles": roles,
+            "role": roles[0] if roles else "user",
+            "formative_stage_id": (row.get("formative_stage_id") or "").strip() or None,
+            "location_id": (row.get("location_id") or "").strip() or None,
+            "function_id": (row.get("function_id") or "").strip() or None,
+            "formador_id": (row.get("formador_id") or "").strip() or None,
+            "notes": (row.get("notes") or "").strip() or None,
+            "status": "active",
+            "deleted_at": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        try:
+            await db.users.insert_one(user_dict)
+            created += 1
+            created_users.append({
+                "full_name": full_name,
+                "email": email,
+                "generated_password": generated_password
+            })
+        except Exception as exc:
+            errors.append({"row": row_index, "email": email, "error": str(exc)})
+            failed += 1
+
+    return {
+        "total": total,
+        "created": created,
+        "failed": failed,
+        "errors": errors,
+        "created_users": created_users
+    }
 
 
 @router.delete("/{user_id}")

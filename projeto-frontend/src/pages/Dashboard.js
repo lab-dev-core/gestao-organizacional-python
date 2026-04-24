@@ -1,33 +1,40 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import { Users, FileText, Video, MapPin, Briefcase, GraduationCap, Activity, TrendingUp, Cake, Heart } from 'lucide-react';
+import { Users, FileText, Video, MapPin, Briefcase, GraduationCap, Activity, TrendingUp, Cake, Heart, AlertTriangle, CalendarClock, ChevronRight } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
 
 const Dashboard = () => {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, isAdmin, isFormador } = useAuth();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
+  const [alerts, setAlerts] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/stats/dashboard`, {
-        headers: getAuthHeaders()
-      });
-      setStats(response.data);
+      const headers = getAuthHeaders();
+      const [statsRes, alertsRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/stats/dashboard`, { headers }),
+        (isAdmin || isFormador) ? axios.get(`${API_URL}/stats/alerts`, { headers }) : Promise.resolve(null),
+      ]);
+      if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
+      if (alertsRes.status === 'fulfilled' && alertsRes.value) setAlerts(alertsRes.value.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, isAdmin, isFormador]);
 
   useEffect(() => {
     fetchStats();
@@ -117,6 +124,48 @@ const Dashboard = () => {
           {t('welcome')}, {user?.full_name}!
         </p>
       </div>
+
+      {/* Alerts Banner (formador/admin) */}
+      {(isAdmin || isFormador) && alerts && (
+        (alerts.overdue_acompanhamentos?.length > 0 || alerts.scheduled_today?.length > 0) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {alerts.overdue_acompanhamentos?.length > 0 && (
+              <button
+                className="text-left flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+                onClick={() => navigate('/formador-dashboard')}
+              >
+                <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50 shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                    {alerts.overdue_acompanhamentos.length} formando{alerts.overdue_acompanhamentos.length !== 1 ? 's' : ''} sem acompanhamento recente
+                  </p>
+                  <p className="text-xs text-red-500 mt-0.5">Clique para ver o painel do formador</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-red-400 shrink-0" />
+              </button>
+            )}
+            {alerts.scheduled_today?.length > 0 && (
+              <button
+                className="text-left flex items-center gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                onClick={() => navigate('/acompanhamentos')}
+              >
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
+                  <CalendarClock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                    {alerts.scheduled_today.length} acompanhamento{alerts.scheduled_today.length !== 1 ? 's' : ''} agendado{alerts.scheduled_today.length !== 1 ? 's' : ''} para hoje
+                  </p>
+                  <p className="text-xs text-blue-500 mt-0.5">Clique para gerenciar acompanhamentos</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-blue-400 shrink-0" />
+              </button>
+            )}
+          </div>
+        )
+      )}
 
       {/* Aniversariantes do Dia — destaque */}
       {(todayBirthdays.length > 0 || todayConsagracao.length > 0) && (

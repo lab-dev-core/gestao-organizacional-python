@@ -1,4 +1,4 @@
-from app.models.enums import UserRole, UserStatus, EducationLevel, AcompanhamentoFrequency
+from app.models.enums import UserRole, UserStatus, EducationLevel, AcompanhamentoFrequency, AcompanhamentoStatus
 from app.models.tenant import (
     TenantPlan, TenantStatus, TenantBase, TenantCreate, TenantUpdate,
     TenantResponse, TenantStatsResponse

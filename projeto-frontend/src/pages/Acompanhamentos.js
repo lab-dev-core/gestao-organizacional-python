@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
-import { Plus, Search, Pencil, Trash2, ClipboardList, ChevronLeft, GraduationCap, Lock, Calendar, Clock, MapPin, User, MessageSquare, FileDown, Download, Paperclip, Upload, FileText, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ClipboardList, ChevronLeft, GraduationCap, Lock, Calendar, Clock, MapPin, User, MessageSquare, FileDown, Download, Paperclip, Upload, FileText, X, Loader2, CheckCircle2, CalendarClock, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -42,7 +42,9 @@ const AcompanhamentosPage = () => {
     location: '',
     content: '',
     frequency: 'biweekly',
-    formative_stage_id: ''
+    formative_stage_id: '',
+    status: 'realizado',
+    next_acompanhamento_date: ''
   });
 
   const canManage = isAdmin || isFormador;
@@ -94,7 +96,9 @@ const AcompanhamentosPage = () => {
       location: '',
       content: '',
       frequency: 'biweekly',
-      formative_stage_id: selectedStage?.id || ''
+      formative_stage_id: selectedStage?.id || '',
+      status: 'realizado',
+      next_acompanhamento_date: ''
     });
     setEditingAcomp(null);
   };
@@ -109,7 +113,9 @@ const AcompanhamentosPage = () => {
         location: acomp.location,
         content: acomp.content,
         frequency: acomp.frequency,
-        formative_stage_id: acomp.formative_stage_id || ''
+        formative_stage_id: acomp.formative_stage_id || '',
+        status: acomp.status || 'realizado',
+        next_acompanhamento_date: acomp.next_acompanhamento_date || ''
       });
     } else {
       resetForm();
@@ -238,6 +244,14 @@ const AcompanhamentosPage = () => {
 
   const getFrequencyLabel = (freq) => {
     return freq === 'weekly' ? 'Semanal' : 'Quinzenal';
+  };
+
+  const getStatusConfig = (status) => {
+    switch (status) {
+      case 'agendado': return { label: 'Agendado', icon: CalendarClock, className: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400' };
+      case 'cancelado': return { label: 'Cancelado', icon: XCircle, className: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400' };
+      default: return { label: 'Realizado', icon: CheckCircle2, className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400' };
+    }
   };
 
   // Get acompanhamentos for selected stage
@@ -437,9 +451,16 @@ const AcompanhamentosPage = () => {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <h3 className="font-semibold">{acomp.user_name}</h3>
-                          <Badge variant="outline">{getFrequencyLabel(acomp.frequency)}</Badge>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {(() => { const sc = getStatusConfig(acomp.status); const Icon = sc.icon; return (
+                              <Badge className={`${sc.className} flex items-center gap-1`}>
+                                <Icon className="w-3 h-3" />{sc.label}
+                              </Badge>
+                            ); })()}
+                            <Badge variant="outline">{getFrequencyLabel(acomp.frequency)}</Badge>
+                          </div>
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
@@ -519,9 +540,28 @@ const AcompanhamentosPage = () => {
                 </div>
               </div>
               
-              <div>
-                <Label className="text-sm text-muted-foreground">Frequência</Label>
-                <Badge className="mt-1">{getFrequencyLabel(viewingAcomp.frequency)}</Badge>
+              <div className="flex items-center gap-6">
+                <div>
+                  <Label className="text-sm text-muted-foreground">Status</Label>
+                  {(() => { const sc = getStatusConfig(viewingAcomp.status); const Icon = sc.icon; return (
+                    <Badge className={`mt-1 flex items-center gap-1 w-fit ${sc.className}`}>
+                      <Icon className="w-3 h-3" />{sc.label}
+                    </Badge>
+                  ); })()}
+                </div>
+                <div>
+                  <Label className="text-sm text-muted-foreground">Frequência</Label>
+                  <Badge className="mt-1 block w-fit">{getFrequencyLabel(viewingAcomp.frequency)}</Badge>
+                </div>
+                {viewingAcomp.next_acompanhamento_date && (
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Próximo Acompanhamento</Label>
+                    <p className="text-sm font-medium mt-1 flex items-center gap-1">
+                      <CalendarClock className="w-4 h-4 text-blue-500" />
+                      {formatDate(viewingAcomp.next_acompanhamento_date)}
+                    </p>
+                  </div>
+                )}
               </div>
               
               <div>
@@ -728,30 +768,59 @@ const AcompanhamentosPage = () => {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Frequência</Label>
-                    <Select
-                      value={formData.frequency}
-                      onValueChange={(v) => setFormData(prev => ({ ...prev, frequency: v }))}
-                    >
-                      <SelectTrigger data-testid="acomp-frequency-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                        <SelectItem value="biweekly">Quinzenal</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Status *</Label>
+                      <Select
+                        value={formData.status}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, status: v }))}
+                      >
+                        <SelectTrigger data-testid="acomp-status-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="realizado">Realizado</SelectItem>
+                          <SelectItem value="agendado">Agendado</SelectItem>
+                          <SelectItem value="cancelado">Cancelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Frequência</Label>
+                      <Select
+                        value={formData.frequency}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, frequency: v }))}
+                      >
+                        <SelectTrigger data-testid="acomp-frequency-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="biweekly">Quinzenal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Relatório do Acompanhamento *</Label>
+                    <Label>Próximo Acompanhamento</Label>
+                    <Input
+                      type="date"
+                      value={formData.next_acompanhamento_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, next_acompanhamento_date: e.target.value }))}
+                      data-testid="acomp-next-date-input"
+                    />
+                    <p className="text-xs text-muted-foreground">Data prevista para o próximo encontro</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Relatório do Acompanhamento{formData.status !== 'agendado' ? ' *' : ''}</Label>
                     <Textarea
                       value={formData.content}
                       onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                      placeholder="Descreva os pontos discutidos, progresso do formando, observações importantes..."
+                      placeholder={formData.status === 'agendado' ? 'Pauta ou observações para o encontro...' : 'Descreva os pontos discutidos, progresso do formando, observações importantes...'}
                       rows={6}
-                      required
+                      required={formData.status !== 'agendado'}
                       data-testid="acomp-content-input"
                     />
                   </div>
@@ -842,9 +911,14 @@ const AcompanhamentosPage = () => {
                           por {acomp.formador_name}
                         </p>
                       </div>
-                      <Badge variant="outline" className="shrink-0">
-                        {getFrequencyLabel(acomp.frequency)}
-                      </Badge>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(() => { const sc = getStatusConfig(acomp.status); const Icon = sc.icon; return (
+                          <Badge className={`${sc.className} flex items-center gap-1`}>
+                            <Icon className="w-3 h-3" />{sc.label}
+                          </Badge>
+                        ); })()}
+                        <Badge variant="outline">{getFrequencyLabel(acomp.frequency)}</Badge>
+                      </div>
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">

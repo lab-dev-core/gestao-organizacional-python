@@ -21,7 +21,8 @@ import {
   CalendarDays,
   Award,
   BarChart2,
-  Palmtree
+  Palmtree,
+  LayoutList
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -29,7 +30,7 @@ import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
 
 const Sidebar = ({ collapsed, onToggle }) => {
-  const { user, isAdmin, isSuperAdmin, tenant } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isFormador, tenant } = useAuth();
   const { t } = useLanguage();
   const location = useLocation();
 
@@ -43,6 +44,10 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { icon: Award, label: t('certificates'), href: '/certificates' },
     { icon: BarChart2, label: 'Relatório Formando', href: '/relatorio-formando' },
     { icon: Palmtree, label: 'Férias', href: '/ferias' },
+  ];
+
+  const formadorNavItems = [
+    { icon: LayoutList, label: 'Painel do Formador', href: '/formador-dashboard' },
   ];
 
   const adminNavItems = [
@@ -158,6 +163,24 @@ const Sidebar = ({ collapsed, onToggle }) => {
             <NavItem key={item.href} item={item} />
           ))}
         </nav>
+
+        {(isAdmin || isFormador) && (
+          <>
+            <Separator className="my-4 mx-3" />
+            {!collapsed && (
+              <div className="px-4 mb-2">
+                <span className="text-xs font-semibold text-blue-500 uppercase tracking-wider">
+                  Formador
+                </span>
+              </div>
+            )}
+            <nav className="px-3 space-y-1">
+              {formadorNavItems.map((item) => (
+                <NavItem key={item.href} item={item} />
+              ))}
+            </nav>
+          </>
+        )}
 
         {isAdmin && (
           <>

@@ -30,6 +30,12 @@ class AcompanhamentoFrequency(str, Enum):
     BIWEEKLY = "biweekly"
 
 
+class AcompanhamentoStatus(str, Enum):
+    AGENDADO = "agendado"
+    REALIZADO = "realizado"
+    CANCELADO = "cancelado"
+
+
 class MaritalStatus(str, Enum):
     SOLTEIRO = "solteiro"
     CASADO = "casado"

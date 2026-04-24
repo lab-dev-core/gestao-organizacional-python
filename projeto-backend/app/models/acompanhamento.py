@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
-from app.models.enums import AcompanhamentoFrequency
+from app.models.enums import AcompanhamentoFrequency, AcompanhamentoStatus
 
 
 class AcompanhamentoAttachment(BaseModel):
@@ -19,6 +19,8 @@ class AcompanhamentoBase(BaseModel):
     location: str
     content: str
     frequency: AcompanhamentoFrequency = AcompanhamentoFrequency.BIWEEKLY
+    status: AcompanhamentoStatus = AcompanhamentoStatus.REALIZADO
+    next_acompanhamento_date: Optional[str] = None
 
 
 class AcompanhamentoCreate(AcompanhamentoBase):
@@ -32,6 +34,8 @@ class AcompanhamentoUpdate(BaseModel):
     content: Optional[str] = None
     frequency: Optional[AcompanhamentoFrequency] = None
     formative_stage_id: Optional[str] = None
+    status: Optional[AcompanhamentoStatus] = None
+    next_acompanhamento_date: Optional[str] = None
 
 
 class AcompanhamentoResponse(AcompanhamentoBase):

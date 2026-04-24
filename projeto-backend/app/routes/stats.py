@@ -34,8 +34,14 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
 
     recent_logs = await db.audit_logs.find(tenant_filter, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
 
-    # ── Aniversariantes ────────────────────────────────────────────────────────
+    # ── Acompanhamentos desta semana ───────────────────────────────────────────
     now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+    week_end = (now + timedelta(days=6 - now.weekday())).strftime("%Y-%m-%d")
+    acomps_this_week = await db.acompanhamentos.count_documents({
+        **tenant_filter,
+        "date": {"$gte": week_start, "$lte": week_end}
+    })
     today_mm_dd = now.strftime("-%m-%d")
     month_mm = now.strftime("-%m-")
 
@@ -88,6 +94,9 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         "content": {
             "documents": total_documents,
             "videos": total_videos,
+        },
+        "acompanhamentos": {
+            "this_week": acomps_this_week,
         },
         "organization": {
             "locations": total_locations,

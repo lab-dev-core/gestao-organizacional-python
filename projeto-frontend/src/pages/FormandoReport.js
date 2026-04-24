@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -11,7 +12,7 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import {
   BarChart2, BookOpen, Video, ClipboardList, CheckCircle2,
   User, Loader2, FileText, Play, MessageSquare, TrendingUp,
-  GraduationCap, ChevronRight
+  GraduationCap, ChevronRight, Download
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -179,6 +180,17 @@ const FormandoReport = () => {
         };
       }).filter(s => s.videos.total + s.docs.total + s.acompanhamentos > 0);
 
+      // Monthly acompanhamentos chart (last 12 months)
+      const now = new Date();
+      const monthlyData = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        const count = acompanhamentos.filter(a => a.date?.startsWith(key)).length;
+        monthlyData.push({ key, label, count });
+      }
+
       setReport({
         user: targetUser,
         acompanhamentos,
@@ -189,7 +201,8 @@ const FormandoReport = () => {
         totalDocs: allDocs.length,
         docProgress,
         overallProgress,
-        stageStats
+        stageStats,
+        monthlyData
       });
     } catch (err) {
       console.error('Error fetching report:', err);
@@ -211,6 +224,29 @@ const FormandoReport = () => {
   const getInitials = (name) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const handleExportPdf = async () => {
+    if (!selectedFormando) return;
+    try {
+      const headers = getAuthHeaders();
+      const year = new Date().getFullYear();
+      const response = await axios.get(
+        `${API_URL}/psychological-assessments/user/${selectedFormando}/annual-report`,
+        { headers, params: { reference_year: year }, responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `relatorio_${report?.user?.full_name?.replace(/\s+/g, '_') || selectedFormando}_${year}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Relatório exportado com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao exportar relatório PDF');
+    }
   };
 
   const selectedUser = formandos.find(f => f.id === selectedFormando);
@@ -369,10 +405,7 @@ const FormandoReport = () => {
                 {report.stageStats.map(({ stage, videos, docs, acompanhamentos: acompCount, progress }) => (
                   <div key={stage.id} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">{stage.order}</Badge>
-                        <span className="font-medium text-sm">{stage.name}</span>
-                      </div>
+                      <span className="font-medium text-sm">{stage.name}</span>
                       <span className="text-sm font-semibold">{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />
@@ -392,6 +425,63 @@ const FormandoReport = () => {
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Monthly Acompanhamentos Chart */}
+          {report.monthlyData && (
+            <Card className="border-0 shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="w-5 h-5" />
+                  Acompanhamentos por Mês (últimos 12 meses)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {report.monthlyData.every(m => m.count === 0) ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum acompanhamento no período</p>
+                ) : (
+                  <div className="flex items-end gap-1.5 h-32">
+                    {(() => {
+                      const maxCount = Math.max(...report.monthlyData.map(m => m.count), 1);
+                      return report.monthlyData.map((m) => (
+                        <div key={m.key} className="flex-1 flex flex-col items-center gap-1 group">
+                          <div className="relative flex items-end w-full" style={{ height: '88px' }}>
+                            <div
+                              className="w-full rounded-t-sm bg-primary/70 group-hover:bg-primary transition-colors"
+                              style={{ height: `${Math.max((m.count / maxCount) * 88, m.count > 0 ? 4 : 0)}px` }}
+                              title={`${m.count} acompanhamento${m.count !== 1 ? 's' : ''}`}
+                            />
+                          </div>
+                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">
+                            {m.label}
+                          </span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* PDF Export */}
+          {(isAdmin || isFormador) && (
+            <Card className="border-0 shadow-md">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-sm">Relatório Anual Completo</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Exporta relatório em PDF com avaliações psicológicas, acompanhamentos e progresso
+                    </p>
+                  </div>
+                  <Button onClick={handleExportPdf} variant="outline" className="shrink-0">
+                    <Download className="w-4 h-4 mr-2" />
+                    Exportar PDF
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

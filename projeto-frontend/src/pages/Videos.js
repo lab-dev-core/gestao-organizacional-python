@@ -44,7 +44,21 @@ const VideosPage = () => {
 
   const hasAccessToStage = (stageId) => {
     if (isAdmin || isFormador) return true;
-    return user?.formative_stage_id === stageId;
+    if (!user?.formative_stage_id || stages.length === 0) return false;
+    const userStage = stages.find(s => s.id === user.formative_stage_id);
+    const targetStage = stages.find(s => s.id === stageId);
+    if (!userStage || !targetStage) return false;
+    return targetStage.order <= userStage.order;
+  };
+
+  const getStageAccessType = (stage) => {
+    if (isAdmin || isFormador) return 'manage';
+    if (!user?.formative_stage_id || stages.length === 0) return 'locked';
+    const userStage = stages.find(s => s.id === user.formative_stage_id);
+    if (!userStage) return 'locked';
+    if (stage.order < userStage.order) return 'past';
+    if (stage.order === userStage.order) return 'current';
+    return 'future';
   };
 
   // ─── Data fetching ──────────────────────────────────────────────────────────
@@ -408,7 +422,11 @@ const VideosPage = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {stages.map((stage) => {
-          const hasAccess = hasAccessToStage(stage.id);
+          const accessType = getStageAccessType(stage);
+          const hasAccess = accessType !== 'future' && accessType !== 'locked';
+          const isCurrent = accessType === 'current';
+          const isPast = accessType === 'past';
+          const isFuture = accessType === 'future' || accessType === 'locked';
           return (
             <Card
               key={stage.id}
@@ -416,18 +434,34 @@ const VideosPage = () => {
                 hasAccess
                   ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1'
                   : 'opacity-60 cursor-not-allowed'
-              }`}
+              } ${isCurrent ? 'ring-2 ring-primary' : ''}`}
               onClick={() => hasAccess && setSelectedStage(stage)}
               data-testid={`stage-folder-${stage.id}`}
             >
               <div className="p-6">
                 <div className="flex items-start justify-between">
-                  <div className={`p-4 rounded-xl ${hasAccess ? 'bg-amber-500/10' : 'bg-muted'}`}>
-                    {hasAccess
-                      ? <Video className="w-8 h-8 text-amber-600" />
-                      : <Lock className="w-8 h-8 text-muted-foreground" />
+                  <div className={`p-4 rounded-xl ${
+                    isCurrent ? 'bg-amber-500/20' :
+                    isPast ? 'bg-green-500/10' :
+                    isFuture ? 'bg-muted' : 'bg-amber-500/10'
+                  }`}>
+                    {isFuture
+                      ? <Lock className="w-8 h-8 text-muted-foreground" />
+                      : isPast
+                        ? <Video className="w-8 h-8 text-green-600" />
+                        : <Video className="w-8 h-8 text-amber-600" />
                     }
                   </div>
+                  {isCurrent && (
+                    <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                      Etapa atual
+                    </Badge>
+                  )}
+                  {isPast && (
+                    <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                      Concluída
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="mt-4">
@@ -437,10 +471,10 @@ const VideosPage = () => {
                   )}
                 </div>
 
-                {!hasAccess && (
+                {isFuture && (
                   <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                     <Lock className="w-3 h-3" />
-                    Acesso restrito à sua etapa formativa
+                    Conclua as etapas anteriores para desbloquear
                   </p>
                 )}
               </div>
